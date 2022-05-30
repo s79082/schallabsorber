@@ -34,11 +34,11 @@ x, sr = read_file("C:\\Users\\Student\\Downloads\\white_noise.wav", 0, 1000)
 ts = 1.0/sr
 t = np.arange(0,1,ts)
 
-plt.figure(figsize = (8, 6))
-plt.scatter(t, x)
-plt.ylabel('Amplitude')
+# plt.figure(figsize = (8, 6))
+# plt.scatter(t, x)
+# plt.ylabel('Amplitude')
 
-plt.show()
+# plt.show()
 
 
 
@@ -59,5 +59,5 @@ def calc_fft(data: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray]:
     #freq = n/T 
     freq = fftfreq(N, 1 / sr)
     #print(len(freq))
-    #return (freq, np.abs(X))
     return (freq, np.abs(X))
+    #return (freq, np.real(X))
