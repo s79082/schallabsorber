@@ -12,36 +12,6 @@ def read_file(filename: str, start_time: int, end_time: int) -> tuple[np.ndarray
     # Return a slice of the data from start_time to end_time
     return (data[int(start_time * sr / 1000) : int(end_time * sr / 1000)], sr)
 
-plt.style.use('seaborn-poster')
-
-# sampling rate
-sr = 192000
-# sampling interval
-ts = 1.0/sr
-t = np.arange(0,1,ts)
-
-freq = 1.
-x = 3*np.sin(2*np.pi*freq*t)
-
-freq = 4
-x += np.sin(2*np.pi*freq*t)
-
-freq = 7   
-x += 0.5* np.sin(2*np.pi*freq*t)
-
-x, sr = read_file("C:\\Users\\Student\\Downloads\\white_noise.wav", 0, 1000)
-
-ts = 1.0/sr
-t = np.arange(0,1,ts)
-
-# plt.figure(figsize = (8, 6))
-# plt.scatter(t, x)
-# plt.ylabel('Amplitude')
-
-# plt.show()
-
-
-
 from scipy.fft import fft, fftfreq
 
 def calc_fft(data: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray]:
@@ -50,14 +20,73 @@ def calc_fft(data: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray]:
         returns (frequency, amplitude)
 
     """
-    #print(len(data))
     X = fft(data)
-    #print(X)
     N = len(X)
-    n = np.arange(N)
-    T = N/sr
-    #freq = n/T 
     freq = fftfreq(N, 1 / sr)
-    #print(len(freq))
     return (freq, np.abs(X))
-    #return (freq, np.real(X))
+
+def generate_test_sine(l: int):
+
+    # gedämpfte 
+    nums = np.arange(l)
+    sine1 = np.zeros(l)
+    sine2 = np.zeros(l)
+    sine3 = np.zeros(l)
+    sine4 = np.zeros(l)
+    sine6 = np.zeros(l)
+    sine7 = np.zeros(l)
+
+    sine1 = np.power(10, -0.0000025 * nums) *  np.sin(0.01 * 2 * np.pi * nums)
+    sine2 = np.power(10, -0.000005 * nums) *  np.sin(0.005 * 2 * np.pi * nums)
+    sine3 = np.power(10, -0.000005 * nums) *  np.sin(0.0025 * 2 * np.pi * nums)
+    sine4 = np.power(10, -0.0000025 * nums) *  np.sin(0.02 * 2 * np.pi * nums)
+
+    sine5 = np.power(10, -0.000006 * nums) *  np.sin(0.025 * 2 * np.pi * nums)
+
+    sine6 = np.power(10, -0.000004 * nums) *  np.sin(0.0225 * 2 * np.pi * nums)
+
+    sine7 = np.power(10, -0.0000025 * nums) *  np.sin(0.003 * 2 * np.pi * nums)
+
+    final_sine = sine1 + sine2 + sine3 + sine4 + sine5 + sine6 + sine7
+
+    plt.plot(sine1)
+    plt.plot(sine2)
+    plt.plot(sine3)
+    plt.plot(sine4)
+    plt.plot(sine5)
+    plt.plot(sine6)
+    plt.plot(sine7)
+    plt.title("einzelne Frequenzen")
+    plt.show()
+
+    plt.plot(final_sine)
+    plt.title("kombinierte Frequenzen")
+    plt.show()
+
+    return final_sine
+
+def generate_noise(l: int) -> np.ndarray:
+    
+    nums = np.arange(l)
+    final_sine = np.zeros(l)
+
+    for i in range(10):
+        d = -(0.0000025 + i * 0.0000001)
+        f = 0.02 + i * 0.001
+        final_sine += np.power(10, d * nums) *  np.sin(f * 2 * np.pi * nums)
+
+    plt.plot(final_sine)
+    plt.show()
+    return final_sine
+
+def same_rt_diff_freq(l: int) -> np.ndarray:
+    nums = np.arange(l)
+    final_sine = np.zeros(l)
+
+    d = -0.000025
+    for i in range(5):
+        
+        f = 0.02 + i * 0.001
+        final_sine += np.power(10, d * nums) *  np.sin(f * 2 * np.pi * nums)
+
+    return final_sine
