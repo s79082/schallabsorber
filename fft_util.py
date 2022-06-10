@@ -84,7 +84,8 @@ def same_rt_diff_freq(l: int) -> np.ndarray:
     final_sine = np.zeros(l)
 
     d = -0.000025
-    for i in range(5):
+
+    for i in range(20):
         
         f = 0.02 + i * 0.001
         final_sine += np.power(10, d * nums) *  np.sin(f * 2 * np.pi * nums)
