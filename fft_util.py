@@ -1,4 +1,5 @@
 import re
+from wave import Wave_read
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import wavfile
@@ -20,7 +21,7 @@ def calc_fft(data: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray]:
         returns (frequency, amplitude)
 
     """
-    X = fft(data)
+    X = fft(data, norm="forward")
     N = len(X)
     freq = fftfreq(N, 1 / sr)
     return (freq, np.abs(X))
@@ -91,3 +92,37 @@ def same_rt_diff_freq(l: int) -> np.ndarray:
         final_sine += np.power(10, d * nums) *  np.sin(f * 2 * np.pi * nums)
 
     return final_sine
+
+def to_db(data: np.ndarray) -> list:
+    return [ 20 * np.log10(abs(chunk)) for chunk in data]
+
+def read_file_raw(fname: str):
+    import wave
+    f: Wave_read = wave.open(fname)
+
+    ret: np.ndarray = np.array(0)
+    for byte_nr in range(1, f.getnframes()):
+        byte = f.readframes(byte_nr)
+
+        val: int = int.from_bytes(byte, "big")
+
+        ret = np.append(ret, [val])
+
+    return ret
+    
+def translate(leftMin, leftMax, rightMin, rightMax):
+
+    def t(value):
+        # Figure out how 'wide' each range is
+        leftSpan = leftMax - leftMin
+        rightSpan = rightMax - rightMin
+
+        # Convert the left range into a 0-1 range (float)
+        valueScaled = float(value - leftMin) / float(leftSpan)
+
+        # Convert the 0-1 range into a value in the right range.
+        return rightMin + (valueScaled * rightSpan)
+
+    return np.vectorize(t)
+
+max_amp = lambda f,a : max(zip(f,a), key=lambda x: x[1])

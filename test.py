@@ -1,18 +1,16 @@
-from signal import signal
-import colored
-from matplotlib import colors
 import numpy as np
 import matplotlib.pyplot as plt
 from fft_util import calc_fft, generate_test_sine, generate_noise, same_rt_diff_freq
-import peakutils
 
 import scipy.signal.windows as win
 
 from scipy.io import wavfile
+from audiofile import read
 
 SAMPLERATE = 48000
 
-INTERVAL = (1000000, 1200000)
+INTERVAL = (1115000, 1200000)
+INTERVAL_LEN = INTERVAL[1] - INTERVAL[0]
 
 # amount of frames we split the data
 N_FRAMES = 10
@@ -24,19 +22,14 @@ def main():
     #data = generate_test_sine(SAMPLERATE)
     #data = generate_noise(SAMPLERATE)
     #data = same_rt_diff_freq(SAMPLERATE)
-    sr, data = wavfile.read("data/wav1.wav")
+    #sr, data = wavfile.read("data/wav1.wav")
+    data, sr = read("data/wav1.wav")
+
     # cut out 
     data = data[INTERVAL[0] : INTERVAL[1]]
 
     # show spektrum for whole data
     fs, amps = calc_fft(data, SAMPLERATE)
-
-    peak_indexes = peakutils.indexes(amps, thres=0.5)
-    print("peaks")
-    print(len(amps[peak_indexes]))
-
-    y_min = np.zeros(len(peak_indexes))
-    y_max = np.array(amps[peak_indexes])
 
     #plt.vlines(peak_indexes, ymin=y_min, ymax=y_max, colors=[(255, 0, 0, 125)])
     plt.scatter(fs, amps)
@@ -47,8 +40,11 @@ def main():
     # split data into frames
     frames = [ data[start : start + frame_size] for start in range(0, SAMPLERATE, frame_size) ]
 
-    plt.plot(data * win.hann(len(data)))
-    plt.show()
+
+
+
+    #plt.plot(data * win.hann(len(data)))
+    #plt.show()
 
     # window frames with hanning window
     windowed_frames = [ win.hann(len(frame)) * frame for frame in frames ]
@@ -72,9 +68,7 @@ def main():
     # the max map for each freq
     max_amp = dict()
 
-    # the wanted difference in amplitude; TODO this should relate to 60dB for RT60
-    # now just take 40% of the max amp of the first frame
-    wanted_diff = max(spectrum_each_frame[0][1]) * 0.5
+    wanted_diff = 0.0185
     #wanted_diff = 5000
     print(wanted_diff)
 
@@ -86,11 +80,20 @@ def main():
         # cut away negative frequencies and above 20kHz
         tmp_zip = np.array(list(filter(lambda x: 20000.0 > x[0] >= 0, zip(f, a))))
 
-        for freq, amp in tmp_zip:
+        for freq, _amp in tmp_zip:
+            
+
+            #amp = 10 * np.log10(abs(_amp))
+
+            amp = _amp
 
             # RT has already been calculated for this frequency
             if max_amp.get(freq) == -1:
                 continue
+
+            # TODO remove later
+            if freq == 2000.0:
+                print(freq, amp, t)
 
             # max amp has not been set for this freq yet
             if not freq in max_amp:
@@ -131,10 +134,14 @@ def main():
     xaxis = np.array(list(rt_for_freq.keys()))
     yaxis = np.array(list(rt_for_freq.values()))
 
-    print(yaxis)
+    y_rt_in_sec = yaxis / SAMPLERATE
 
-    plt.bar(xaxis, yaxis, width=20)
-    plt.ylabel("RT60 (samples)")
+    print(yaxis)
+    print(xaxis)
+
+    plt.bar(xaxis, y_rt_in_sec, width=10)
+    #plt.ylabel("RT60 (samples)")
+    plt.ylabel("RT20 (s)")
     plt.xlabel("Frequenz (Hz)")
     plt.title("Nachhallzeit für 192k samples")
     plt.show()
