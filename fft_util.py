@@ -24,7 +24,7 @@ def calc_fft(data: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray]:
     X = fft(data, norm="forward")
     N = len(X)
     freq = fftfreq(N, 1 / sr)
-    return (freq, np.abs(X))
+    return (freq[:int(N/2)], np.abs(X[:int(N/2)]))
 
 def generate_test_sine(l: int):
 
