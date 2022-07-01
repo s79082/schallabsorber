@@ -21,7 +21,8 @@ def calc_fft(data: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray]:
         returns (frequency, amplitude)
 
     """
-    X = fft(data, norm="forward")
+    #X = fft(data, norm="forward")
+    X = fft(data)
     N = len(X)
     freq = fftfreq(N, 1 / sr)
     return (freq[:int(N/2)], np.abs(X[:int(N/2)]))
