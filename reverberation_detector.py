@@ -18,7 +18,7 @@ def generate_intervals(total_lenght: int, n_intervals: int) -> list[tuple[int, i
 
 def detect_intervals(data: np.array, l: int = 9) -> list[tuple[int, int]]:
     
-    steps = generate_intervals(len(data), int(len(data) / 100))
+    steps = generate_intervals(len(data), int(len(data) / 500))
     print(interval_len(steps[0]))
 
     intervals = []
@@ -28,7 +28,7 @@ def detect_intervals(data: np.array, l: int = 9) -> list[tuple[int, int]]:
 
     # convert wave into db
     dbs = 10 * np.log10(abs(data) / (3.3656 * 10 ** -11))
-    db_thresh = 78.0
+    db_thresh = 72.0
 
     for step in steps:
 
@@ -67,6 +67,8 @@ if __name__ == "__main__":
 
     plt.vlines(starts, 0, 1, colors=["green"])
     plt.vlines(ends, 0, 1, colors=["red"])
+
+    [ print(interval_len(i)) for i in intervals ]
 
 
     plt.show()
