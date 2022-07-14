@@ -150,12 +150,16 @@ if __name__ == "__main__":
 
     matrices = []
 
-    rt_acc = np.zeros((480,), dtype=np.float64)
+    #rt_acc = np.zeros((480,), dtype=np.float64)
 
     import scipy.signal as sig
 
+    acc_mat = None
+    init_acc = True
+    n_mat = 0
+
     # for each interest
-    for start, end in interval:
+    for _, end in interval:
 
         #end += 30000
         data_slice = data[end - 16000 : end]
@@ -164,17 +168,28 @@ if __name__ == "__main__":
 
         #cutoff = len(data_slice) - 50000
 
-        f, t, M = sig.spectrogram(data_slice)
+        f, t, M = sig.spectrogram(data_slice, nperseg=50)
         #plt.pcolormesh(t, f, M)
         #plt.show()
+
+        index_0_04 = np.where(f == 0.3)[0][0]
+
+        tmp = M[index_0_04]
+
+        plt.scatter(t, tmp)
+        plt.show()
+
+        print(index_0_04)
 
         print(M.shape)
         print(len(f))
         print(len(t))
 
-        matrices.append(M)
-
-
+        if init_acc:
+            acc_mat = np.zeros(M.shape)
+            init_acc = False
+        acc_mat += M
+        n_mat += 1
 
         #data_slice = data_slice[cutoff:]
 
@@ -186,17 +201,12 @@ if __name__ == "__main__":
 
 
     # calculate average
-    acc = np.zeros(M.shape, M.dtype)
+    acc_mat /=4
 
-    for m in matrices:
-        acc += M
-
-    acc /=4
-
-    plt.pcolormesh(t, f, acc)
+    plt.pcolormesh(t, f, acc_mat)
     plt.show()
 
-    M_db = 10 * np.log10(abs(acc) / X_0)
+    M_db = 10 * np.log10(abs(acc_mat) / X_0)
 
     plt.pcolormesh(t, f, M_db)
     plt.show()
@@ -205,18 +215,18 @@ if __name__ == "__main__":
     rt_calculated = np.zeros(f.shape, dtype=bool)
 
     # samples for each freq
-    for f_idx, samples_over_time in enumerate(acc):
+    for f_idx, samples_over_time in enumerate(acc_mat):
         dbs = to_dB(samples_over_time)
         maxima = dbs[0]
         # cut away start
         dbs = dbs[1:]
-        for sample in dbs:
-            if maxima - sample > DB_DIFF:
+        for t_idx, sample in enumerate(dbs):
+            if maxima - sample > DB_DIFF and rt_calculated[f_idx] is False:
                 print(f[f_idx], "found")
                 rt_calculated[f_idx] = True
 
 
-
+print(f)
     #rt_acc /= 4
 
     #plt.plot(rt_acc)
