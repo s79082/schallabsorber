@@ -168,18 +168,18 @@ if __name__ == "__main__":
 
         #cutoff = len(data_slice) - 50000
 
-        f, t, M = sig.spectrogram(data_slice, nperseg=50)
+        f, t, M = sig.spectrogram(data_slice, fs=sr, window="hann", nfft=512*4)
         #plt.pcolormesh(t, f, M)
         #plt.show()
 
-        index_0_04 = np.where(f == 0.3)[0][0]
+        #index_0_04 = np.where(f == 0.3)[0][0]
 
-        tmp = M[index_0_04]
+        #tmp = M[index_0_04]
 
-        plt.scatter(t, tmp)
-        plt.show()
+        #plt.scatter(t, tmp)
+        #plt.show()
 
-        print(index_0_04)
+        #print(index_0_04)
 
         print(M.shape)
         print(len(f))
@@ -208,23 +208,68 @@ if __name__ == "__main__":
 
     M_db = 10 * np.log10(abs(acc_mat) / X_0)
 
+    #plt.pcolormesh(t, f, M_db, shading="gouraud")
     plt.pcolormesh(t, f, M_db)
+    plt.ylabel("Frequency (Hz)")
+    plt.xlabel("Time (s)")
+    plt.colorbar(label="SPL (dB)")
+
     plt.show()
 
     # zeros evaluate to false
     rt_calculated = np.zeros(f.shape, dtype=bool)
 
+    rts = []
+
     # samples for each freq
     for f_idx, samples_over_time in enumerate(acc_mat):
         dbs = to_dB(samples_over_time)
-        maxima = dbs[0]
-        # cut away start
-        dbs = dbs[1:]
-        for t_idx, sample in enumerate(dbs):
-            if maxima - sample > DB_DIFF and rt_calculated[f_idx] is False:
-                print(f[f_idx], "found")
-                rt_calculated[f_idx] = True
 
+       # lin = np.zeros()
+        N_SLICES = 10
+        slices = np.array_split(dbs, N_SLICES)
+
+        slice_avgs = [ np.average(s) for s in slices ]
+
+        maximum = slice_avgs[0]
+
+        for t, slice in enumerate(slice_avgs):
+            diff = maximum - slice
+            if diff >= 15.0:
+                rt = (t * N_SLICES ) / SAMPLERATE
+                print("RT20 for ", f[f_idx], " is ", rt)
+
+                rts.append(rt)
+
+                break   # go to next freq
+            pass
+
+
+        # if max(slice_avgs) > 25:
+            
+        #     if max(slice_avgs) - min(slice_avgs) > 16:
+        #         print("RT20 for ", f[f_idx], " is ", (np.argmin(samples_over_time) * N_SLICES ) / SAMPLERATE)
+        #     plt.plot(slice_avgs)
+        #     plt.show()
+        #     plt.title(str(f[f_idx]))
+            #diff = np.diff(slice_avgs)
+
+            #plt.plot(diff)
+            #plt.show()
+
+
+        # maxima = dbs[0]
+        # # cut away start
+        # dbs = dbs[1:]
+        # for t_idx, sample in enumerate(dbs):
+        #     if maxima - sample > DB_DIFF and rt_calculated[f_idx] is False:
+        #         print(f[f_idx], "found")
+        #         rt_calculated[f_idx] = True
+
+plt.plot(rts)
+print(len(rts))
+print(len(f))
+plt.show()
 
 print(f)
     #rt_acc /= 4
