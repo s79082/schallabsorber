@@ -7,8 +7,11 @@ import scipy.signal.windows as win
 from fft_util import calc_fft, generate_test_sine
 from reverberation_detector import detect_intervals, interval_len
     
-LINEAR_CRITERIUM = 5
-X_0 = 3.3656 * 10 ** -11
+LINEAR_CRITERIUM = 9.5
+X_0 = 1.18111 * 10 ** -9
+#X_0 = 3.36566 * 10 ** -11
+#X_0 = 8.26072 * 10 ** -11
+
 
 DB_DIFF = 20.0 
 
@@ -39,6 +42,32 @@ N_FRAMES = 50
 
 # cut away a part of interest
 #data = data[INTERVAL[0] : INTERVAL[1]]
+
+
+def get_diff(data: np.array, des_diff: int) -> int:
+    ''' Detects when data drops des_diff and returns the needed x-axis difference '''
+    # TODO consider linearity
+
+    maximum = data[0]
+    last_diff = 0
+
+    for i, d in enumerate(data):
+        
+        diff = maximum - d
+
+        if abs(last_diff - diff) > LINEAR_CRITERIUM:
+            break
+
+        if diff >= des_diff:
+            return i
+
+        last_diff = diff
+
+    return 0
+
+
+    
+
 
 def calc_rt(data: np.array) -> np.array:
 
@@ -168,7 +197,7 @@ if __name__ == "__main__":
 
         #cutoff = len(data_slice) - 50000
 
-        f, t, M = sig.spectrogram(data_slice, fs=sr, window="hann", nfft=512*4)
+        f, ts, M = sig.spectrogram(data_slice, fs=sr, window="hann", nfft=SAMPLERATE / 100)
         #plt.pcolormesh(t, f, M)
         #plt.show()
 
@@ -183,7 +212,7 @@ if __name__ == "__main__":
 
         print(M.shape)
         print(len(f))
-        print(len(t))
+        print(len(ts))
 
         if init_acc:
             acc_mat = np.zeros(M.shape)
@@ -203,13 +232,16 @@ if __name__ == "__main__":
     # calculate average
     acc_mat /=4
 
-    plt.pcolormesh(t, f, acc_mat)
+    plt.plot(acc_mat[20])
+    plt.show()
+
+    plt.pcolormesh(ts, f, acc_mat)
     plt.show()
 
     M_db = 10 * np.log10(abs(acc_mat) / X_0)
 
     #plt.pcolormesh(t, f, M_db, shading="gouraud")
-    plt.pcolormesh(t, f, M_db)
+    plt.pcolormesh(ts, f, M_db)
     plt.ylabel("Frequency (Hz)")
     plt.xlabel("Time (s)")
     plt.colorbar(label="SPL (dB)")
@@ -218,31 +250,52 @@ if __name__ == "__main__":
 
     # zeros evaluate to false
     rt_calculated = np.zeros(f.shape, dtype=bool)
+    rts = np.zeros(f.shape)
 
-    rts = []
+    #rts = []
 
     # samples for each freq
     for f_idx, samples_over_time in enumerate(acc_mat):
         dbs = to_dB(samples_over_time)
 
+        timestep = get_diff(dbs, 20)
+        print("timestep", timestep)
+
+        print("len ts", len(ts))
+        print("t ", ts[timestep])
+        print("max ", max(ts))
+        rt = ts[timestep]
+        #rt = timestep / 16000
+        rts[f_idx] = rt * 3
+
+        if f_idx == 20:
+            plt.plot(ts, dbs)
+            plt.show()
+            plt.plot(ts, samples_over_time)
+            plt.show()
+
        # lin = np.zeros()
-        N_SLICES = 10
+        N_SLICES = 100
         slices = np.array_split(dbs, N_SLICES)
+
+        slice_len = len(slices[0])
 
         slice_avgs = [ np.average(s) for s in slices ]
 
         maximum = slice_avgs[0]
 
-        for t, slice in enumerate(slice_avgs):
-            diff = maximum - slice
-            if diff >= 15.0:
-                rt = (t * N_SLICES ) / SAMPLERATE
-                print("RT20 for ", f[f_idx], " is ", rt)
+        # for t, slice in enumerate(slice_avgs):
+        #     diff = maximum - slice
+        #     if diff >= 20.0 and not rt_calculated[f_idx]:
+        #         rt = (t * slice_len ) / SAMPLERATE
+        #         print("RT20 for ", f[f_idx], " is ", rt)
 
-                rts.append(rt)
+        #         #rts.append(rt)
+        #         rts[f_idx] = rt
+        #         rt_calculated[f_idx] = True
 
-                break   # go to next freq
-            pass
+        #         break   # go to next freq
+        #     pass
 
 
         # if max(slice_avgs) > 25:
@@ -266,7 +319,7 @@ if __name__ == "__main__":
         #         print(f[f_idx], "found")
         #         rt_calculated[f_idx] = True
 
-plt.plot(rts)
+plt.plot(f, rts)
 print(len(rts))
 print(len(f))
 plt.show()
