@@ -1,4 +1,5 @@
 import re
+from typing import final
 from wave import Wave_read
 import matplotlib.pyplot as plt
 import numpy as np
@@ -49,8 +50,8 @@ def generate_test_sine(l: int):
 
     sine7 = np.power(10, -0.0000025 * nums) *  np.sin(0.003 * 2 * np.pi * nums)
 
-    final_sine = sine1 + sine2 + sine3 + sine4 + sine5 + sine6 + sine7
-
+    #final_sine = sine1 + sine2 + sine3 + sine4 + sine5 + sine6 + sine7
+    final_sine = sine3
     plt.plot(sine1)
     plt.plot(sine2)
     plt.plot(sine3)
