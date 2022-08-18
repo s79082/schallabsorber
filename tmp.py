@@ -1,3 +1,5 @@
+from typing import Callable
+from pyparsing import col
 from scipy.io.wavfile import read
 import audiofile
 import numpy as np
@@ -10,7 +12,7 @@ from reverberation_detector import detect_intervals, interval_len
 from sklearn.metrics import mean_squared_error
 
 import tkinter as tk
-from tkinter import END, ttk
+from tkinter import END, Misc, ttk
     
 LINEAR_CRITERIUM = 9.5
 X_0 = 1.18111 * 10 ** -9
@@ -31,23 +33,17 @@ INTERVAL_LEN = INTERVAL[1] - INTERVAL[0]
 # amount of frames we split the data
 N_FRAMES = 50
 
-# read the data
-#data, sr = audiofile.read("data/wav1.wav")
-
-# cut away a part of interest
-#data = data[INTERVAL[0] : INTERVAL[1]]
-
 def main():
 
-    def f():
+    def f(nfft, nperseg):
 
         global txt_nfft, txt_nperseg, axis
 
         for a in axis:
             a.clear()
 
-        nfft = int(txt_nfft.get("1.0", tk.END))
-        nperseg = int(txt_nperseg.get("1.0", tk.END))
+        #nfft = int(txt_nfft.get("1.0", tk.END))
+        #nperseg = int(txt_nperseg.get("1.0", tk.END))
         print(nfft, nperseg)
 
         data, sr = audiofile.read("data/wav1.wav")
@@ -73,6 +69,7 @@ def main():
 
             #cutoff = len(data_slice) - 50000
 
+            print(type(nfft), type(nperseg))
             f, ts, M = sig.spectrogram(data_slice, fs=sr, window="hann", nfft=nfft, nperseg=nperseg)
             #plt.pcolormesh(t, f, M)
             #plt.show()
@@ -134,6 +131,8 @@ def main():
         rt_calculated = np.zeros(f.shape, dtype=bool)
         rts = np.zeros(f.shape)
         mses = np.zeros(f.shape)
+        # contains the freq points where no rt could be calculated
+        no_values = np.empty(f.shape, dtype=object)
         # contains all rts, not dep. on mses
         rts_no_mse = np.zeros(f.shape)
         slopes = np.zeros(f.shape)
@@ -170,83 +169,137 @@ def main():
             if mse <= 20 and t_predict > 0:
                 rts[f_idx] = t_predict  
 
+            if slope > -20:
+                rts[f_idx] = 0
 
 
-
-    #plt.plot(f, rts_no_mse)log
-        #axis[2].plot(f, rts)
-        #axis[2].plot(f, mses)
-
-        #plt.plot(f, slopes)
-        #plt.legend(["rt", "mse", "rt after mse", "slope"])
-
-        f = f[:175]
-        print(f)
-        rts = rts[:175]
+        #f = f[:175]
+        #print(f)
+        #rts = rts[:175]
         axis[2].plot(f, rts)
+        #axis[2].plot(f, slopes)
         plt.show()
 
     
     return f
+def change_nfft(operation: Callable):
+    def f():
+        global NFFT
+        val = NFFT
+        val = operation(val)
+        #val *= 2
+
+        txt_nfft.delete("1.0", END)
+        txt_nfft.insert("1.0", val)
+
+        NFFT = val
+
+        main()()
+
+    return f
 
 
+def increment_nfft():
+    #val = int(float(txt_nfft.get("1.0")))
+    global NFFT
+    val = NFFT
+    val *= 2
+
+    txt_nfft.delete("1.0", END)
+    txt_nfft.insert("1.0", val)
+
+    NFFT = val
+
+    main()()
+
+def decrement_nfft():
+    global NFFT
+    val = NFFT
+    val = int(val / 2)
+
+    txt_nfft.delete("1.0", END)
+    txt_nfft.insert("1.0", val)
+
+    NFFT = val
+
+    main()()
+
+
+
+class Value:
+
+    def on_inc(self):
+        self.val.set(2 * self.val.get())
+        draw()
+        
+
+    def on_dec(self):
+        self.val.set(int(self.val.get() / 2))
+        draw()
+
+    def get(self):
+        return self.val.get()
+
+        
+
+    def __init__(self, m: Misc, r: int, var) -> None:
+        self.val = var
+        self.val.set(256)
+    
+        self.btn_inc = tk.Button(master=m, text="+", command=self.on_inc, width=10)
+        self.btn_inc.grid(row=r, column=1)
+
+        self.btn_dec = tk.Button(master=m, text="-", command=self.on_dec, width=10)
+        self.btn_dec.grid(row=r, column=2)
+
+        self.lb_value = tk.Label(master=m, textvariable=self.val, width=10)
+        self.lb_value.grid(row=r, column=0)
+    
+def draw():
+    main()(nfft_val.get(), nperseg_val.get())
 if __name__ == "__main__":
     # load file
     
-    #data = generate_test_sine(SAMPLERATE)
+    NFFT = 256
 
     fig, axis = plt.subplots(1, 3)
 
     window = tk.Tk()
 
-    txt_nfft = tk.Text(master=window, height=1, width=10)
-    txt_nfft.insert("1.0", "248")
-    txt_nfft.pack()
+    nfft = tk.IntVar(master=window)
+    nfft.set(256)
+    #nfft.trace_add("write", lambda x,y,z: main()(nfft.get(), nfft.get()))
 
-    def change_listener_nfft():
-        val = int(float(txt_nfft.get("1.0")))
-        print(val)
-        val *= 2
+    nfft_val = Value(window, 0, nfft)
+    nperseg = tk.IntVar(master=window)
+    nperseg.set(256)
+    nperseg_val = Value(window, 1, nperseg)
 
-        txt_nfft.delete("1.0", END)
-        txt_nfft.insert("1.0", val)
+    # txt_nfft = tk.Text(master=window, height=1, width=10)
+    # txt_nfft.insert("1.0", "248")
+    # txt_nfft.grid(row=0, column=0)
 
-        main()()
-
-    btn_inc_nfft = tk.Button(master=window, text="+", command=change_listener_nfft)
-    btn_inc_nfft.pack()
+    # btn_inc_nfft = tk.Button(master=window, text="+", command=increment_nfft)
+    # btn_dec_nfft = tk.Button(master=window, text="-", command=decrement_nfft)
+    # btn_inc_nfft.grid(row=0, column=1)
+    # btn_dec_nfft.grid(row=0, column=2)
     
-    def change_listener_sld_nfft(val):
-        val = int(float(val))
-        txt_nfft.delete("1.0", END)
-        txt_nfft.insert("1.0", val)
+    # def change_listener_sld_nfft(val):
+    #     val = int(float(val))
+    #     txt_nfft.delete("1.0", END)
+    #     txt_nfft.insert("1.0", val)
         
-        main()()
+    #     main()()
 
-    sld_nfft = ttk.Scale(master=window, from_=24, to=SAMPLERATE, command=change_listener_sld_nfft)
-    sld_nfft.pack()
+    # sld_nfft = ttk.Scale(master=window, from_=24, to=SAMPLERATE, command=change_listener_sld_nfft)
+    # #sld_nfft.pack()
 
-    txt_nperseg = tk.Text(master=window, height=1, width=10)
-    txt_nperseg.insert("1.0", "248")    
-    txt_nperseg.pack()
+    # txt_nperseg = tk.Text(master=window, height=1, width=10)
+    # txt_nperseg.insert("1.0", "248")    
+    # #txt_nperseg.pack()
 
-    btn_draw = tk.Button(master=window, text="calc", command=main())
-    btn_draw.pack()
-
-    
-
-
-    
-
-    # detect interests
-    
-
-#plt.plot()
-
-    #rt_acc /= 4
-
-    #plt.plot(rt_acc)
-    #plt.show()
+    # btn_draw = tk.Button(master=window, text="calc", command=main())
+    # btn_draw.grid(row=3, column=0)
 
 
     window.mainloop()
