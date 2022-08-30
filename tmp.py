@@ -33,11 +33,11 @@ INTERVAL_LEN = INTERVAL[1] - INTERVAL[0]
 # amount of frames we split the data
 N_FRAMES = 50
 
-def main():
+def calc():
 
-    def f(nfft, nperseg, max_mse, max_slope, thresh):
+    def f(data, nfft, nperseg, max_mse, max_slope, thresh):
 
-        global txt_nfft, txt_nperseg, axis
+        global axis
 
         for a in axis:
             a.clear()
@@ -45,17 +45,29 @@ def main():
         #nfft = int(txt_nfft.get("1.0", tk.END))
         #nperseg = int(txt_nperseg.get("1.0", tk.END))
         print(nfft, nperseg)
+        #data = data[280000:360000]
+        print(type(data))
 
         #data, sr = audiofile.read("data/wav1.wav")
-        data, sr = audiofile.read("E:/t2-exp.wav")
-        data = data[280000:360000]
+        #data, sr = audiofile.read("D:/t2-exp.wav")
+
+        #data = data[280000:360000]
+        print(data.shape)
+        tmp_data = np.zeros((data.shape[0],))
+        for idx, _ in enumerate(tmp_data):
+            tmp_data[idx] = data[idx]
+
+        data = tmp_data
+
+        print(type(data), len(data))
+        #print(data)
         #plt.plot(data)
         #plt.show()
         #interval = detect_intervals(data)
         interval = [(0, len(data))]
         matrices = []
 
-        SAMPLERATE = sr
+        sr = 44100
 
         #rt_acc = np.zeros((480,), dtype=np.float64)
 
@@ -71,12 +83,12 @@ def main():
             #end += 30000
             #data_slice = data[end - 16000 : end]
             data_slice = data
-            print(len(data_slice))
+            #print(len(data_slice))
             
 
             #cutoff = len(data_slice) - 50000
 
-            print(type(nfft), type(nperseg))
+            #print(type(nfft), type(nperseg))
             f, ts, M = sig.spectrogram(data_slice, fs=sr, window="hann", nfft=nfft, nperseg=nperseg)
             #plt.pcolormesh(t, f, M)
             #plt.show()
@@ -117,17 +129,29 @@ def main():
         # print(f[7])
         # plt.plot(acc_mat[7])
         # plt.show()
+        print("len M", len(M))
+        M_tmp = np.zeros((M.shape[0], M.shape[1],), dtype=np.float32)
+        for r, row in enumerate(M_tmp):
+            for c, col in enumerate(row):
+                M_tmp[r, c] = col
 
-        axis[0].pcolormesh(ts, f, acc_mat)
+        print(type(M_tmp[0, 0]), M_tmp.shape)
+
+        #M_tmp = np.swapaxes(M_tmp, 0, 1)
+        print(len(ts), len(f))
+        #axis[0].pcolormesh(ts, f, M_tmp)
+        axis[0].plot(data_slice)
         #plt.pcolormesh(ts, f, acc_mat)
         #plt.show()
 
-        M_db = 10 * np.log10(abs(acc_mat) / X_0)
+        M_db = to_dB(acc_mat)
 
         #plt.pcolormesh(t, f, M_db, shading="gouraud")
         
         #plt.pcolormesh(ts, f, M_db)
         axis[1].pcolormesh(ts, f, M_db)
+        #axis[1].colorbar()
+        plt.colorbar(cax=axis[1])
         #plt.ylabel("Frequency (Hz)")
         #plt.xlabel("Time (s)")
         #plt.colorbar(label="SPL (dB)")
@@ -154,6 +178,8 @@ def main():
             # convert to dB
             dBs = to_dB(samples_over_time)
             if 850 < f[f_idx] < 1150 or 4000 < f[f_idx] < 4500:
+                #plt.plot(dBs)
+                #plt.show()
                 #plt.plot(dBs)
                 #plt.show()
                 print("max", max(dBs))
@@ -204,55 +230,13 @@ def main():
         #f = f[:175]
         #print(f)
         #rts = rts[:175]
+        print(rts[-1:])
         axis[2].scatter(f, rts, s=5)
         #axis[2].plot(f, slopes)
         plt.show()
 
     
     return f
-def change_nfft(operation: Callable):
-    def f():
-        global NFFT
-        val = NFFT
-        val = operation(val)
-        #val *= 2
-
-        txt_nfft.delete("1.0", END)
-        txt_nfft.insert("1.0", val)
-
-        NFFT = val
-
-        main()()
-
-    return f
-
-
-def increment_nfft():
-    #val = int(float(txt_nfft.get("1.0")))
-    global NFFT
-    val = NFFT
-    val *= 2
-
-    txt_nfft.delete("1.0", END)
-    txt_nfft.insert("1.0", val)
-
-    NFFT = val
-
-    main()()
-
-def decrement_nfft():
-    global NFFT
-    val = NFFT
-    val = int(val / 2)
-
-    txt_nfft.delete("1.0", END)
-    txt_nfft.insert("1.0", val)
-
-    NFFT = val
-
-    main()()
-
-
 
 class Value:
 
@@ -261,7 +245,7 @@ class Value:
             self.val.set(self.val.get() + 1)
         else:
             self.val.set(int(self.val.get() * 2))
-        draw()
+        draw(glob_data)
         
 
     def on_dec(self):
@@ -269,7 +253,7 @@ class Value:
             self.val.set(self.val.get() - 1)
         else:
             self.val.set(int(self.val.get() / 2))
-        draw()
+        draw(glob_data)
 
     def get(self):
         return self.val.get()
@@ -293,13 +277,11 @@ class Value:
         self.lb_value = tk.Label(master=m, textvariable=self.val, width=10)
         self.lb_value.grid(row=r, column=1)
     
-def draw():
-    main()(nfft_val.get(), nperseg_val.get(), max_mse.get(), max_slope.get(), thresh.get())
+def draw(data):
+    calc()(data, nfft_val.get(), nperseg_val.get(), max_mse.get(), max_slope.get(), thresh.get())
 
-if __name__ == "__main__":
-    # load file
-    
-    NFFT = 256
+def main(data):
+    global nfft_val, nperseg_val, max_mse_val, max_mse, max_slope, thresh, axis, glob_data
 
     fig, axis = plt.subplots(1, 3)
 
@@ -325,35 +307,15 @@ if __name__ == "__main__":
     thresh = tk.IntVar(master=window)
     thresh.set(50)
     thresh_val = Value(window, 4, thresh, "thresh [dB]")
-
-    # txt_nfft = tk.Text(master=window, height=1, width=10)
-    # txt_nfft.insert("1.0", "248")
-    # txt_nfft.grid(row=0, column=0)
-
-    # btn_inc_nfft = tk.Button(master=window, text="+", command=increment_nfft)
-    # btn_dec_nfft = tk.Button(master=window, text="-", command=decrement_nfft)
-    # btn_inc_nfft.grid(row=0, column=1)
-    # btn_dec_nfft.grid(row=0, column=2)
-    
-    # def change_listener_sld_nfft(val):
-    #     val = int(float(val))
-    #     txt_nfft.delete("1.0", END)
-    #     txt_nfft.insert("1.0", val)
-        
-    #     main()()
-
-    # sld_nfft = ttk.Scale(master=window, from_=24, to=SAMPLERATE, command=change_listener_sld_nfft)
-    # #sld_nfft.pack()
-
-    # txt_nperseg = tk.Text(master=window, height=1, width=10)
-    # txt_nperseg.insert("1.0", "248")    
-    # #txt_nperseg.pack()
-
-    # btn_draw = tk.Button(master=window, text="calc", command=main())
-    # btn_draw.grid(row=3, column=0)
-
-    draw()
+    #data = data
+    glob_data = data
+    draw(data)
     window.mainloop()
+
+if __name__ == "__main__":
+    main(None)
+    
+    
 
 
 

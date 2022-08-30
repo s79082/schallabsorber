@@ -15,6 +15,7 @@ import numpy as np
 import sounddevice as sd
 
 from tmp import to_dB
+import tmp
 
 
 def int_or_str(text):
@@ -61,17 +62,55 @@ if any(c < 1 for c in args.channels):
     parser.error('argument CHANNEL: must be >= 1')
 mapping = [c - 1 for c in args.channels]  # Channel numbers start with 1
 q = queue.Queue()
-
+start = None
+end = 0
 current = 0
+draw = False
+n_frames = 0
 def audio_callback(indata, frames, time, status):
     """This is called (from a separate thread) for each audio block."""
+    global start, end, draw, n_frames, record_data
     if status:
         print(status, file=sys.stderr)
-    # Fancy indexing with mapping creates a (necessary!) copy:
-    if np.average(to_dB(indata[::args.downsample, mapping])) > 80:
-        print(np.average(to_dB(indata[::args.downsample, mapping])))
-    q.put(indata[::args.downsample, mapping])
+    #print(len(indata[5]))
+    data = indata[:, mapping]
+    data_dB = to_dB(data)
+    #print(int(len(data) / 1000))
+    chunky_data = np.array_split(data, int(len(data) / 128))
+    #print(len(chunky_data[0]))
+    #print(all([ len(x) == 1136 for x in chunky_data ]))
+    # TODO
+    for i, s in enumerate([data_dB]):
+        #print(len(s))
+        val = np.max(s)
+        if val > 85 and start is None:
+            print("START")
+            start = i
+            n_frames = 0
+            continue
+        if start is not None and val < 70:
+            print("END")
+            #print(start, end)
+            print(n_frames / 44100.0)
+            n_frames = 0
+            end = i
+            start = None
+            draw = True
+            #print(len(record_data) / 44100)
+        elif start is not None:
+            shift = len(data)
+            #print(shift)
+            record_data = np.roll(record_data, -shift, axis=0)
+            #print(record_data[-shift:, :])
+            #print(data[0])
+            record_data[-shift:, :] = data
 
+    # Fancy indexing with mapping creates a (necessary!) copy:
+    #if np.max(to_dB(indata[::args.downsample, mapping])) > 80:
+    #    print(np.max(to_dB(indata[::args.downsample, mapping])))
+    q.put(indata[::args.downsample, mapping])
+    n_frames += frames
+    
 
 def update_plot(frame):
     """This is called by matplotlib for each plot update.
@@ -80,7 +119,7 @@ def update_plot(frame):
     therefore the queue tends to contain multiple blocks of audio data.
 
     """
-    global plotdata
+    global plotdata, draw, ax, record_data
     while True:
         try:
             data = q.get_nowait()
@@ -90,27 +129,46 @@ def update_plot(frame):
         plotdata = np.roll(plotdata, -shift, axis=0)
         plotdata[-shift:, :] = data
     for column, line in enumerate(lines):
-        line.set_ydata(plotdata[:, column])
-    return lines
+        if draw:
+            #ax.vlines([start], [-10], [10], colors=["red"])
+            #ax.vlines(end, -10, 10, colors=["red"])
+            plt.ion()
+            plt.figure().clear()
+            #plt.plot(record_data)
+            #plt.show()
+            data_slice = np.array([ x for x in record_data if x != 0 ])
 
+
+            #plt.plot(to_dB(data_slice))
+            #plt.show()
+
+            tmp.main(data_slice)
+            record_data = np.zeros(record_data.shape)
+            #ax[1].plot(record_data)
+            draw = False
+        else:
+            line.set_ydata(plotdata[:, column])
+    return lines
 
 try:
     if args.samplerate is None:
         device_info = sd.query_devices(args.device, 'input')
         args.samplerate = device_info['default_samplerate']
-
+    print(args.samplerate)
     length = int(args.window * args.samplerate / (1000 * args.downsample))
     plotdata = np.zeros((length, len(args.channels)))
+    record_data = np.zeros((length * 100, len(args.channels)))
 
-    fig, ax = plt.subplots()
-    lines = ax.plot(plotdata)
+    fig, ax = plt.subplots(ncols=2)
+    lines = ax[0].plot(plotdata)
     if len(args.channels) > 1:
         ax.legend([f'channel {c}' for c in args.channels],
                   loc='lower left', ncol=len(args.channels))
-    ax.axis((0, len(plotdata), -1, 1))
-    ax.set_yticks([0])
-    ax.yaxis.grid(True)
-    ax.tick_params(bottom=False, top=False, labelbottom=False,
+    ax[0].axis((0, len(plotdata), -1, 1))
+    ax[0].set_yticks([0])
+    ax[0].yaxis.grid(True)
+    
+    ax[0].tick_params(bottom=False, top=False, labelbottom=False,
                    right=False, left=False, labelleft=False)
     fig.tight_layout(pad=0)
 
