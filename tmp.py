@@ -20,7 +20,7 @@ X_0 = 1.18111 * 10 ** -9
 #X_0 = 8.26072 * 10 ** -11
 
 
-DB_DIFF = 20.0 
+DB_DIFF = 60.0 
 
 def to_dB(data: np.ndarray) -> np.ndarray:
     return 10 * np.log10(abs(data) / X_0)
@@ -37,7 +37,7 @@ def calc():
 
     def f(data, nfft, nperseg, max_mse, max_slope, thresh):
 
-        global axis
+        global axis, glob_rts, glob_freqs
 
         for a in axis:
             a.clear()
@@ -140,7 +140,9 @@ def calc():
         #M_tmp = np.swapaxes(M_tmp, 0, 1)
         print(len(ts), len(f))
         #axis[0].pcolormesh(ts, f, M_tmp)
-        axis[0].plot(data_slice)
+        axis[0].plot(to_dB(data_slice))
+        axis[0].set_xlabel("time (s)")
+        axis[0].set_ylabel("Pegel (dB)")
         #plt.pcolormesh(ts, f, acc_mat)
         #plt.show()
 
@@ -150,8 +152,10 @@ def calc():
         
         #plt.pcolormesh(ts, f, M_db)
         axis[1].pcolormesh(ts, f, M_db)
+        axis[1].set_xlabel("time (s)")
+        axis[1].set_ylabel("frequency (Hz)")
         #axis[1].colorbar()
-        plt.colorbar(cax=axis[1])
+        #plt.colorbar(cax=axis[1])
         #plt.ylabel("Frequency (Hz)")
         #plt.xlabel("Time (s)")
         #plt.colorbar(label="SPL (dB)")
@@ -232,10 +236,33 @@ def calc():
         #rts = rts[:175]
         print(rts[-1:])
         axis[2].scatter(f, rts, s=5)
+        axis[2].set_xlabel("frequency (Hz)")
+        axis[2].set_ylabel("RT20 (s)")
+
+
         #axis[2].plot(f, slopes)
         plt.show()
 
+        print(len(f), f[1] - f[0])
+
+        glob_rts = rts
+        glob_freqs = f
+
+        
     
+    return f
+
+
+def write_file(name: str, rts: np.ndarray, freqs: np.ndarray):
+    def f():
+        with open(name, "w+") as file:
+
+                for f_idx, rt in enumerate(rts):
+
+                    freq = freqs[f_idx]
+
+                    file.write("{},{}\n".format(freq, rt))
+
     return f
 
 class Value:
@@ -281,8 +308,10 @@ def draw(data):
     calc()(data, nfft_val.get(), nperseg_val.get(), max_mse.get(), max_slope.get(), thresh.get())
 
 def main(data):
-    global nfft_val, nperseg_val, max_mse_val, max_mse, max_slope, thresh, axis, glob_data
+    global nfft_val, nperseg_val, max_mse_val, max_mse, max_slope, thresh, axis, glob_data, glob_freqs, glob_rts
 
+
+    glob_rts = None
     fig, axis = plt.subplots(1, 3)
 
     window = tk.Tk()
@@ -297,16 +326,24 @@ def main(data):
 
     max_mse = tk.IntVar(master=window)
     max_mse.set(60)
-    max_mse_val = Value(window, 2, max_mse, "max_mse")
+    max_mse_val = Value(window, 2, max_mse, "maximaler Fehler")
 
 
     max_slope = tk.IntVar(master=window)
     max_slope.set(-20)
-    max_slope_val = Value(window, 3, max_slope, "slope")
+    max_slope_val = Value(window, 3, max_slope, "maximaler Anstieg")
 
     thresh = tk.IntVar(master=window)
     thresh.set(50)
-    thresh_val = Value(window, 4, thresh, "thresh [dB]")
+    thresh_val = Value(window, 4, thresh, "Schwelle für RT Messung [dB]")
+
+
+    #btn_writefile = tk.Button(master=window, text="write rt to file", command=write_file("test.out", glob_rts, glob_freqs))
+    #btn_writefile.grid(row=5, column=0)
+
+    txt_filename = tk.Text(master=window)
+    txt_filename.grid(row=5, column=1)
+    txt_filename.insert("1.0", "out.csv")
     #data = data
     glob_data = data
     draw(data)
