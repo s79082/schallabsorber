@@ -1,3 +1,4 @@
+from re import I
 from typing import Callable
 from pyparsing import col
 from scipy.io.wavfile import read
@@ -76,6 +77,25 @@ def calc():
         acc_mat = None
         init_acc = True
         n_mat = 0
+
+        split_size = 1000
+
+        # split data into slices
+        splits = np.array_split(to_dB(data), len(data) / split_size)
+
+        split_maxs = [max(split) for split in splits]
+
+        diffs = np.diff(split_maxs)
+
+        smaller_than = lambda c: lambda x: x < c
+
+        #idx_drop = idx_where(diffs, lambda x: x < -4)
+        idx_drop = idx_where(diffs, smaller_than(-2))
+
+        # scale idx to real
+        idx_drop *= split_size
+
+        data = data[idx_drop:]
 
         # for each interest
         for _, end in interval:
@@ -239,6 +259,15 @@ def calc():
         axis[2].set_xlabel("frequency (Hz)")
         axis[2].set_ylabel("RT20 (s)")
 
+        
+
+        #axis[0].vlines([idx_drop], [0], [10], colors=["red"])
+
+
+
+        axis[3].plot(diffs)
+
+
 
         #axis[2].plot(f, slopes)
         plt.show()
@@ -251,6 +280,14 @@ def calc():
         
     
     return f
+
+def idx_where(arr: np.ndarray, key) -> int:
+
+    for i, a in enumerate(arr):
+        if key(a):
+            return i
+    
+    return -1
 
 
 def write_file(name: str, rts: np.ndarray, freqs: np.ndarray):
@@ -312,7 +349,7 @@ def main(data):
 
 
     glob_rts = None
-    fig, axis = plt.subplots(1, 3)
+    fig, axis = plt.subplots(1, 4)
 
     window = tk.Tk()
 
