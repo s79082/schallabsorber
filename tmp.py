@@ -43,16 +43,9 @@ def calc():
         for a in axis:
             a.clear()
 
-        #nfft = int(txt_nfft.get("1.0", tk.END))
-        #nperseg = int(txt_nperseg.get("1.0", tk.END))
         print(nfft, nperseg)
-        #data = data[280000:360000]
         print(type(data))
 
-        #data, sr = audiofile.read("data/wav1.wav")
-        #data, sr = audiofile.read("D:/t2-exp.wav")
-
-        #data = data[280000:360000]
         print(data.shape)
         tmp_data = np.zeros((data.shape[0],))
         for idx, _ in enumerate(tmp_data):
@@ -61,16 +54,11 @@ def calc():
         data = tmp_data
 
         print(type(data), len(data))
-        #print(data)
-        #plt.plot(data)
-        #plt.show()
-        #interval = detect_intervals(data)
+   
         interval = [(0, len(data))]
         matrices = []
 
         sr = 44100
-
-        #rt_acc = np.zeros((480,), dtype=np.float64)
 
         import scipy.signal as sig
 
@@ -92,36 +80,19 @@ def calc():
         #idx_drop = idx_where(diffs, lambda x: x < -4)
         idx_drop = idx_where(diffs, smaller_than(-2))
 
-        # scale idx to real
-        idx_drop *= split_size
+        if idx_drop > 1000:
+            # scale idx to real
+            idx_drop *= split_size
 
-        data = data[idx_drop:]
+            data = data[idx_drop:]
 
         # for each interest
         for _, end in interval:
 
-            #end += 30000
-            #data_slice = data[end - 16000 : end]
             data_slice = data
-            #print(len(data_slice))
-            
 
-            #cutoff = len(data_slice) - 50000
-
-            #print(type(nfft), type(nperseg))
             f, ts, M = sig.spectrogram(data_slice, fs=sr, window="hann", nfft=nfft, nperseg=nperseg)
-            #plt.pcolormesh(t, f, M)
-            #plt.show()
-
-            #index_0_04 = np.where(f == 0.3)[0][0]
-
-            #tmp = M[index_0_04]
-
-            #plt.scatter(t, tmp)
-            #plt.show()
-
-            #print(index_0_04)
-
+            
             print(M.shape)
             print(len(f))
             print(len(ts))
@@ -132,23 +103,10 @@ def calc():
             acc_mat += M
             n_mat += 1
 
-            #data_slice = data_slice[cutoff:]
-
-            #plt.plot(data)
-            #plt.vlines([start, end], 0, max(data), "red")
-            #plt.vlines([start + cutoff], 0, max(data), "green")
-
-            #rt_acc += calc_rt(data_slice)
-
 
         # calculate average
         acc_mat /= len(interval)
-        # print(f[2])
-        # plt.plot(acc_mat[2])
-        # plt.show()
-        # print(f[7])
-        # plt.plot(acc_mat[7])
-        # plt.show()
+ 
         print("len M", len(M))
         M_tmp = np.zeros((M.shape[0], M.shape[1],), dtype=np.float32)
         for r, row in enumerate(M_tmp):
@@ -157,31 +115,17 @@ def calc():
 
         print(type(M_tmp[0, 0]), M_tmp.shape)
 
-        #M_tmp = np.swapaxes(M_tmp, 0, 1)
         print(len(ts), len(f))
-        #axis[0].pcolormesh(ts, f, M_tmp)
         axis[0].plot(to_dB(data_slice))
         axis[0].set_xlabel("time (s)")
         axis[0].set_ylabel("Pegel (dB)")
-        #plt.pcolormesh(ts, f, acc_mat)
-        #plt.show()
 
         M_db = to_dB(acc_mat)
-
-        #plt.pcolormesh(t, f, M_db, shading="gouraud")
         
-        #plt.pcolormesh(ts, f, M_db)
         axis[1].pcolormesh(ts, f, M_db)
         axis[1].set_xlabel("time (s)")
         axis[1].set_ylabel("frequency (Hz)")
-        #axis[1].colorbar()
-        #plt.colorbar(cax=axis[1])
-        #plt.ylabel("Frequency (Hz)")
-        #plt.xlabel("Time (s)")
-        #plt.colorbar(label="SPL (dB)")
-
-        #plt.show()
-
+  
         # zeros evaluate to false
         rt_calculated = np.zeros(f.shape, dtype=bool)
         rts = np.zeros(f.shape)
@@ -197,27 +141,14 @@ def calc():
         # samples for each freq
         for f_idx, samples_over_time in enumerate(acc_mat):
 
-            #if 850 < f[f_idx] < 1150:
-            #    plt.plot(samples_over_time)
-            # convert to dB
             dBs = to_dB(samples_over_time)
             if 850 < f[f_idx] < 1150 or 4000 < f[f_idx] < 4500:
-                #plt.plot(dBs)
-                #plt.show()
-                #plt.plot(dBs)
-                #plt.show()
+
                 print("max", max(dBs))
 
             if max(dBs) < thresh:
                 rts[f_idx] = 0 
                 continue
-            #if 850 < f[f_idx] < 1150:
-            #    plt.plot(dBs)
-            #    print(f[f_idx])
-                #plt.show()
-            #if f_idx == 1:
-                #plt.plot(dBs)
-                #plt.show()
 
             # linear regression 
             model = np.polyfit(ts, dBs, 1)
@@ -237,10 +168,7 @@ def calc():
 
             
             mse = mean_squared_error(dBs, predicted_dBs)
-            #if 850 < f[f_idx] < 1150:
-            #    print(t_predict, mse, slope)
-            #    plt.plot(predicted_dBs)
-            #    plt.show()
+
             mses[f_idx] = mse
             slopes[f_idx] = slope
             rts_no_mse[f_idx] = t_predict
@@ -259,17 +187,8 @@ def calc():
         axis[2].set_xlabel("frequency (Hz)")
         axis[2].set_ylabel("RT20 (s)")
 
-        
-
-        #axis[0].vlines([idx_drop], [0], [10], colors=["red"])
-
-
-
         axis[3].plot(diffs)
 
-
-
-        #axis[2].plot(f, slopes)
         plt.show()
 
         print(len(f), f[1] - f[0])
@@ -277,8 +196,6 @@ def calc():
         glob_rts = rts
         glob_freqs = f
 
-        
-    
     return f
 
 def idx_where(arr: np.ndarray, key) -> int:
@@ -387,7 +304,16 @@ def main(data):
     window.mainloop()
 
 if __name__ == "__main__":
-    main(None)
+
+    import audiofile
+
+    data, sr = audiofile.read("data/wav1.wav")
+    print(sr)
+
+    #data = data[1110100:1140600]
+    data = data[2075000:2087500]
+
+    main(data)
     
     
 
