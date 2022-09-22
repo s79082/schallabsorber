@@ -5,6 +5,7 @@ Matplotlib and NumPy have to be installed.
 
 """
 import argparse
+from ast import arg
 import queue
 from statistics import mean
 import sys
@@ -139,6 +140,11 @@ def update_plot(frame):
             #plt.show()
             data_slice = np.array([ x for x in record_data if x != 0 ])
 
+
+            
+
+            #plt.plot(np.diff(split_maxs))
+            #plt.show()
 
             #plt.plot(to_dB(data_slice))
             #plt.show()
