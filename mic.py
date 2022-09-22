@@ -62,6 +62,7 @@ if any(c < 1 for c in args.channels):
     parser.error('argument CHANNEL: must be >= 1')
 mapping = [c - 1 for c in args.channels]  # Channel numbers start with 1
 q = queue.Queue()
+print(args)
 start = None
 end = 0
 current = 0
@@ -173,7 +174,7 @@ try:
     fig.tight_layout(pad=0)
 
     stream = sd.InputStream(
-        device=args.device, channels=max(args.channels),
+        device=None, channels=max(args.channels),
         samplerate=args.samplerate, callback=audio_callback)
     ani = FuncAnimation(fig, update_plot, interval=args.interval, blit=True)
     with stream:
