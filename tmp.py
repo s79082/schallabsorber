@@ -1,4 +1,4 @@
-from re import I
+
 from typing import Callable
 from pyparsing import col
 from scipy.io.wavfile import read
@@ -6,6 +6,12 @@ import audiofile
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal.windows as win
+
+
+
+from mpl_toolkits import mplot3d
+
+
 
 from fft_util import calc_fft, generate_test_sine
 from reverberation_detector import detect_intervals, interval_len
@@ -26,7 +32,7 @@ DB_DIFF = 60.0
 def to_dB(data: np.ndarray) -> np.ndarray:
     return 10 * np.log10(abs(data) / X_0)
 
-SAMPLERATE = 48000
+SAMPLERATE = 44100
 
 INTERVAL = (1115000, 1200000)
 INTERVAL_LEN = INTERVAL[1] - INTERVAL[0]
@@ -66,27 +72,37 @@ def calc():
         init_acc = True
         n_mat = 0
 
-        split_size = 1000
+        # split_size = 1000
 
-        # split data into slices
-        splits = np.array_split(to_dB(data), len(data) / split_size)
+        # # split data into slices
+        # splits = np.array_split(to_dB(data), len(data) / split_size)
 
-        split_maxs = [max(split) for split in splits]
+        # split_maxs = [max(split) for split in splits]
 
-        diffs = np.diff(split_maxs)
+        # diffs = np.diff(split_maxs)
 
-        smaller_than = lambda c: lambda x: x < c
+        # smaller_than = lambda c: lambda x: x < c
 
-        #idx_drop = idx_where(diffs, lambda x: x < -4)
-        idx_drop = idx_where(diffs, smaller_than(-2))
+        # #idx_drop = idx_where(diffs, lambda x: x < -4)
+        # idx_drop = idx_where(diffs, smaller_than(-2))
+        # print("idx_drop", idx_drop)
 
-        if idx_drop > 1000:
-            # scale idx to real
-            idx_drop *= split_size
+        # if idx_drop > 5:
+        #     # scale idx to real
+        #     idx_drop *= split_size
 
-            data = data[idx_drop:]
+        #     data = data[idx_drop:]
 
         # for each interest
+        #data = data[-8000:]
+        data = data[-SAMPLERATE:]
+        #import wave
+        #with wave.open("test.wav", "wb") as wav:
+        #    wav.setnchannels(1)
+        #    wav.setsampwidth(1)
+        #    wav.setparams()
+        #    wav.writeframes(data)
+
         for _, end in interval:
 
             data_slice = data
@@ -187,14 +203,18 @@ def calc():
         axis[2].set_xlabel("frequency (Hz)")
         axis[2].set_ylabel("RT20 (s)")
 
-        axis[3].plot(diffs)
-
-        plt.show()
+        #axis[3].plot(diffs)
+        #axis[3].fig = plt.figure()
+        #ax = plt.axes(projection='3d')
+        
 
         print(len(f), f[1] - f[0])
 
         glob_rts = rts
         glob_freqs = f
+
+        plt.show()
+
 
     return f
 
@@ -207,17 +227,33 @@ def idx_where(arr: np.ndarray, key) -> int:
     return -1
 
 
-def write_file(name: str, rts: np.ndarray, freqs: np.ndarray):
-    def f():
-        with open(name, "w+") as file:
+def write_file():
+    #global glob_freqs, glob_rts, txt_filename
+    name = txt_filename.get("1.0", tk.END + "-1c")
+    with open(name, "w+") as file:
 
-                for f_idx, rt in enumerate(rts):
+        file.write("{}\n".format(get_header()))
+        file.write("{}\n".format(get_param_str()))
 
-                    freq = freqs[f_idx]
+        for f_idx, rt in enumerate(glob_rts):
 
-                    file.write("{},{}\n".format(freq, rt))
+            freq = glob_freqs[f_idx]
+            file.write("{},{}\n".format(freq, rt))
 
-    return f
+def write_wav():
+    import scipy.io.wavfile as wav
+    data = glob_data
+
+    wav.write("out.wav", SAMPLERATE, data)
+
+def get_header() -> str:
+    import datetime
+    now = datetime.datetime.now()
+    return now.strftime("%Y-%m-%d %H:%M:%S")
+
+def get_param_str() -> str:
+
+    return "{}, {}".format(nfft_val.get(), nperseg_val.get())
 
 class Value:
 
@@ -261,14 +297,14 @@ class Value:
 def draw(data):
     calc()(data, nfft_val.get(), nperseg_val.get(), max_mse.get(), max_slope.get(), thresh.get())
 
-def main(data):
-    global nfft_val, nperseg_val, max_mse_val, max_mse, max_slope, thresh, axis, glob_data, glob_freqs, glob_rts
+def main(data, window, close_call):
+    global nfft_val, nperseg_val, max_mse_val, max_mse, max_slope, thresh, axis, glob_data, glob_freqs, glob_rts, txt_filename
 
 
-    glob_rts = None
+    #glob_rts = None
     fig, axis = plt.subplots(1, 4)
 
-    window = tk.Tk()
+    #window = tk.Tk()
 
     nfft = tk.IntVar(master=window)
     nfft.set(256)
@@ -288,20 +324,26 @@ def main(data):
     max_slope_val = Value(window, 3, max_slope, "maximaler Anstieg")
 
     thresh = tk.IntVar(master=window)
-    thresh.set(50)
+    thresh.set(20)
     thresh_val = Value(window, 4, thresh, "Schwelle für RT Messung [dB]")
 
 
-    #btn_writefile = tk.Button(master=window, text="write rt to file", command=write_file("test.out", glob_rts, glob_freqs))
-    #btn_writefile.grid(row=5, column=0)
+    btn_writefile = tk.Button(master=window, text="write rt to file", command=write_file)
+    btn_writefile.grid(row=5, column=0)
 
-    txt_filename = tk.Text(master=window)
+    btn_rec = tk.Button(master=window, text="REC", command=close_call)
+    btn_rec.grid(row=5, column=3)
+
+    txt_filename = tk.Text(master=window, width=20, height=1)
     txt_filename.grid(row=5, column=1)
     txt_filename.insert("1.0", "out.csv")
+
+    btn_wav = tk.Button(master=window, text="save sample as WAV", command=write_wav)
+    btn_wav.grid(row=6, column=1)
     #data = data
     glob_data = data
     draw(data)
-    window.mainloop()
+    #window.mainloop()
 
 if __name__ == "__main__":
 

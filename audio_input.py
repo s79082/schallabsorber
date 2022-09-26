@@ -1,13 +1,17 @@
 import queue as qu
 import sys
-from tkinter import S
+from tkinter import DISABLED, S
+import tkinter
 import numpy as np
 import sounddevice as sd
 
-from tmp import to_dB
+import matplotlib.pyplot as plt
 
-LISTENING = "listening"
-RECORDING = "recording"
+from tmp import to_dB, main
+class States:
+    LISTENING = "listening"
+    RECORDING = "recording"
+    DISABLED = "disabled"
 
 class AudioInput:
 
@@ -20,22 +24,51 @@ class AudioInput:
         self.n_frames = 0
         length = int(200 * samplerate / (1000 * 10))
 
-        self.record_data = np.zeros((length, len(channels)))
+        self.samplerate = samplerate
 
-        self.state = LISTENING
+        print(length)
+
+        self.window = tkinter.Tk()
+
+        self.btn_rec_var = tkinter.StringVar(master=self.window, value="DISABLED")
+
+        self.btn_rec = tkinter.Button(master=self.window, textvariable=self.btn_rec_var, command=self._toggle_rec)
+        self.btn_rec.grid(row=0, column=0)
+
+        self.btn_wav = tkinter.Button(master=self.window, text="load WAV file")
+        self.btn_wav.grid(row=1, column=0)
+
+        self.record_data = np.zeros((length * 100, len(channels)))
+
+        self.state = States.DISABLED
+
 
         self.stream = sd.InputStream(
             device=None, channels=max(channels),
             samplerate=samplerate, callback=self._audio_callback)
 
         with self.stream as s:
-            input()
+            self.window.mainloop()
+
+
+    def _toggle_rec(self):
+
+        if self.state == States.DISABLED:
+            plt.close()
+            self.record_data = np.zeros(self.record_data.shape)
+            self.state = States.LISTENING
+            self.btn_rec_var.set(self.state)
+
+        elif self.state == States.LISTENING or self.state == States.RECORDING:
+
+            self.state = States.DISABLED
+            self.btn_rec_var.set(self.state)
 
     def get_data(self) -> np.ndarray:
-        pass
+        return self.record_data
 
     def get_data_length(self) -> int:
-        pass
+        return len(self.record_data)
 
     def _audio_callback(self, indata, frames, _, status):
         if status:
@@ -50,62 +83,50 @@ class AudioInput:
         # get max amp
         max_val = np.max(data_dB)
 
+        shift = len(data)
+
         if max_val > 85:
 
-            if self.state == LISTENING:
-
-                shift = len(data)
+            if self.state == States.LISTENING:
 
                 # TODO start recording
+                print("start")
                 #self.record_data = np.roll(self.record_data, -shift, axis=0)
-
+                #self.record_data[-shift:, :] = data
+                #self.record_data = np.roll(self.record_data, -shift, axis=0)
+                self.state = States.RECORDING
+                self.n_frames = 0
                 pass
 
             else:
                 pass
 
-        elif self.state ==  LISTENING:
+        if self.state ==  States.RECORDING:
             # still recording
+            print("still rec")
             self.record_data = np.roll(self.record_data, -shift, axis=0)
             self.record_data[-shift:, :] = data
-
+            self.n_frames += frames
         
         if max_val < 70:
 
-            if self.state == RECORDING:
+            if self.state == States.RECORDING:
                 # TODO finish recording
-                pass
+                self.state = States.LISTENING
+                print("stop")
+                print(self.n_frames / self.samplerate)
+                
+                data_slice = np.array([ x for x in self.record_data if x != 0 ])
 
-        
+                self.state = States.DISABLED
+                
+                main(data_slice, self.window, self._toggle_rec)
 
-
-        # check for interest
-        # TODO own class/file
-        # if max_val > 85 and start is None:
-        #     print("START")
-        #     self.start = i
-        #     n_frames = 0
-        #     return
-        # if start is not None and max_val < 70:
-        #     print("END")
-        #     #print(start, end)
-        #     print(n_frames / 44100.0)
-        #     n_frames = 0
-        #     start = None
-        #     draw = True
-        #     #print(len(record_data) / 44100)
-        # elif start is not None:
-        #     shift = len(data)
-        #     #print(shift)
-        #     record_data = np.roll(record_data, -shift, axis=0)
-        #     #print(record_data[-shift:, :])
-        #     #print(data[0])
-        #     record_data[-shift:, :] = data
-
-        print(len(data))
+        #print(len(data))
 
 
 if __name__ == "__main__":
     dev = AudioInput([1], 44100)
+    print(dev.get_data())
 
 

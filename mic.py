@@ -165,6 +165,7 @@ try:
     length = int(args.window * args.samplerate / (1000 * args.downsample))
     plotdata = np.zeros((length, len(args.channels)))
     record_data = np.zeros((length * 100, len(args.channels)))
+    print(length)
 
     fig, ax = plt.subplots(ncols=2)
     lines = ax[0].plot(plotdata)
