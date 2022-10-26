@@ -32,13 +32,16 @@ DB_DIFF = 60.0
 def to_dB(data: np.ndarray) -> np.ndarray:
     return 10 * np.log10(abs(data) / X_0)
 
-SAMPLERATE = 44100
+SAMPLERATE = 48000
 
 INTERVAL = (1115000, 1200000)
 INTERVAL_LEN = INTERVAL[1] - INTERVAL[0]
 
 # amount of frames we split the data
 N_FRAMES = 50
+
+all_rts = []
+
 
 def calc():
 
@@ -64,7 +67,7 @@ def calc():
         interval = [(0, len(data))]
         matrices = []
 
-        sr = 44100
+        sr = 48000
 
         import scipy.signal as sig
 
@@ -95,7 +98,7 @@ def calc():
 
         # for each interest
         #data = data[-8000:]
-        data = data[-SAMPLERATE:]
+        #data = data[-SAMPLERATE:]
         #import wave
         #with wave.open("test.wav", "wb") as wav:
         #    wav.setnchannels(1)
@@ -198,11 +201,30 @@ def calc():
         #f = f[:175]
         #print(f)
         #rts = rts[:175]
+        all_rts.append(rts)
         print(rts[-1:])
-        axis[2].scatter(f, rts, s=5)
+        #axis[2].scatter(f, rts, s=5)
         axis[2].set_xlabel("frequency (Hz)")
-        axis[2].set_ylabel("RT20 (s)")
+        axis[2].set_ylabel("RT60 (s)")
+        axis[2].scatter(f, mses, c=['red'], s=3)
+        for messung, color in zip(all_rts, ['red', 'blue', 'green']):
+            axis[2].scatter(f, messung, s=5, c=[color])
 
+        
+
+        axis[2].plot([250, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000],
+            [0.98, 0.53, 0.82, 0.8, 0.6, 0.71, 0.69, 0.63, 0.68, 0.64, 0.63, 0.63, 0.63])
+
+        #2
+        axis[2].plot([400, 500, 800, 1000, 1250, 1600, 2000, 2500, 3150],
+        [0.44, 0.7, 0.66, 0.72, 0.71, 0.64, 0.68, 0.64, 0.63])
+
+        #0
+        axis[2].plot([500, 800, 1000, 1250, 1600, 2000, 2500, 3150],
+        [0.81, 0.73, 0.7, 0.77, 0.68, 0.7, 0.69, 0.67])
+        #3
+        axis[2].plot([250, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150],
+            [0.5, 0.83, 0.68, 0.7, 0.73, 0.62, 0.68, 0.65, 0.61])
         #axis[3].plot(diffs)
         #axis[3].fig = plt.figure()
         #ax = plt.axes(projection='3d')
@@ -212,6 +234,7 @@ def calc():
 
         glob_rts = rts
         glob_freqs = f
+        write_file()
 
         plt.show()
 
@@ -229,7 +252,8 @@ def idx_where(arr: np.ndarray, key) -> int:
 
 def write_file():
     #global glob_freqs, glob_rts, txt_filename
-    name = txt_filename.get("1.0", tk.END + "-1c")
+    #name = txt_filename.get("1.0", tk.END + "-1c")
+    name = "rt60.csv"
     with open(name, "w+") as file:
 
         file.write("{}\n".format(get_header()))
@@ -298,7 +322,7 @@ def draw(data):
     calc()(data, nfft_val.get(), nperseg_val.get(), max_mse.get(), max_slope.get(), thresh.get())
 
 def main(data, window, close_call):
-    global nfft_val, nperseg_val, max_mse_val, max_mse, max_slope, thresh, axis, glob_data, glob_freqs, glob_rts, txt_filename
+    global nfft_val, nperseg_val, max_mse_val, max_mse, max_slope, thresh, axis, glob_data, glob_freqs, glob_rts, txt_filename, all_rts
 
 
     #glob_rts = None
@@ -307,11 +331,11 @@ def main(data, window, close_call):
     #window = tk.Tk()
 
     nfft = tk.IntVar(master=window)
-    nfft.set(256)
+    nfft.set(2048)
     nfft_val = Value(window, 0, nfft, "nfft", mode="")
 
     nperseg = tk.IntVar(master=window)
-    nperseg.set(256)
+    nperseg.set(64)
     nperseg_val = Value(window, 1, nperseg, "nperseg", mode="")
 
     max_mse = tk.IntVar(master=window)
@@ -324,7 +348,7 @@ def main(data, window, close_call):
     max_slope_val = Value(window, 3, max_slope, "maximaler Anstieg")
 
     thresh = tk.IntVar(master=window)
-    thresh.set(20)
+    thresh.set(0)
     thresh_val = Value(window, 4, thresh, "Schwelle für RT Messung [dB]")
 
 
@@ -342,6 +366,7 @@ def main(data, window, close_call):
     btn_wav.grid(row=6, column=1)
     #data = data
     glob_data = data
+
     draw(data)
     #window.mainloop()
 

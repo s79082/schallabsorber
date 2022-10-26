@@ -35,8 +35,10 @@ class AudioInput:
         self.btn_rec = tkinter.Button(master=self.window, textvariable=self.btn_rec_var, command=self._toggle_rec)
         self.btn_rec.grid(row=0, column=0)
 
-        self.btn_wav = tkinter.Button(master=self.window, text="load WAV file")
+        self.btn_wav = tkinter.Button(master=self.window, text="load WAV file", command=self.load_file)
         self.btn_wav.grid(row=1, column=0)
+
+
 
         self.record_data = np.zeros((length * 100, len(channels)))
 
@@ -63,6 +65,20 @@ class AudioInput:
 
             self.state = States.DISABLED
             self.btn_rec_var.set(self.state)
+
+    def load_file(self):
+        import audiofile
+        data, _ = audiofile.read("data/2022-09-24_SLM_001_Audio_FS129.7dB(PK)_00.wav")
+        data = data[int(1.29 * 10 ** 6): int(1.30 * 10 **6)]
+        main(data, self.window, self._toggle_rec)
+        l = len(data)
+        data, _ = audiofile.read("data/2022-09-24_SLM_002_Audio_FS129.7dB(PK)_00.wav")
+        data = data[int(1.268 * 10 ** 6): int(1.268 * 10 ** 6) + l]
+
+        main(data, self.window, self._toggle_rec)
+
+
+
 
     def get_data(self) -> np.ndarray:
         return self.record_data
@@ -103,7 +119,7 @@ class AudioInput:
 
         if self.state ==  States.RECORDING:
             # still recording
-            print("still rec")
+            #print("still rec")
             self.record_data = np.roll(self.record_data, -shift, axis=0)
             self.record_data[-shift:, :] = data
             self.n_frames += frames
