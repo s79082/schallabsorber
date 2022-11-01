@@ -135,7 +135,8 @@ def calc():
         print(type(M_tmp[0, 0]), M_tmp.shape)
 
         print(len(ts), len(f))
-        axis[0].plot(to_dB(data_slice))
+        time_axis = np.arange(len(data_slice)) / SAMPLERATE
+        axis[0].plot(time_axis, to_dB(data_slice))
         axis[0].set_xlabel("time (s)")
         axis[0].set_ylabel("Pegel (dB)")
 
@@ -203,28 +204,28 @@ def calc():
         #rts = rts[:175]
         all_rts.append(rts)
         print(rts[-1:])
-        #axis[2].scatter(f, rts, s=5)
+        axis[2].scatter(f, rts, s=5)
         axis[2].set_xlabel("frequency (Hz)")
         axis[2].set_ylabel("RT60 (s)")
-        axis[2].scatter(f, mses, c=['red'], s=3)
-        for messung, color in zip(all_rts, ['red', 'blue', 'green']):
-            axis[2].scatter(f, messung, s=5, c=[color])
+        #axis[2].scatter(f, mses, c=['red'], s=3)
+        #for messung, color in zip(all_rts, ['red', 'blue', 'green']):
+        #axis[2].scatter(f, messung, s=5, c=[color])
 
         
 
-        axis[2].plot([250, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000],
-            [0.98, 0.53, 0.82, 0.8, 0.6, 0.71, 0.69, 0.63, 0.68, 0.64, 0.63, 0.63, 0.63])
+        # axis[2].plot([250, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000],
+        #     [0.98, 0.53, 0.82, 0.8, 0.6, 0.71, 0.69, 0.63, 0.68, 0.64, 0.63, 0.63, 0.63])
 
-        #2
-        axis[2].plot([400, 500, 800, 1000, 1250, 1600, 2000, 2500, 3150],
-        [0.44, 0.7, 0.66, 0.72, 0.71, 0.64, 0.68, 0.64, 0.63])
+        # #2
+        # axis[2].plot([400, 500, 800, 1000, 1250, 1600, 2000, 2500, 3150],
+        # [0.44, 0.7, 0.66, 0.72, 0.71, 0.64, 0.68, 0.64, 0.63])
 
-        #0
-        axis[2].plot([500, 800, 1000, 1250, 1600, 2000, 2500, 3150],
-        [0.81, 0.73, 0.7, 0.77, 0.68, 0.7, 0.69, 0.67])
-        #3
-        axis[2].plot([250, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150],
-            [0.5, 0.83, 0.68, 0.7, 0.73, 0.62, 0.68, 0.65, 0.61])
+        # #0
+        # axis[2].plot([500, 800, 1000, 1250, 1600, 2000, 2500, 3150],
+        # [0.81, 0.73, 0.7, 0.77, 0.68, 0.7, 0.69, 0.67])
+        # #3
+        # axis[2].plot([250, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150],
+        #     [0.5, 0.83, 0.68, 0.7, 0.73, 0.62, 0.68, 0.65, 0.61])
         #axis[3].plot(diffs)
         #axis[3].fig = plt.figure()
         #ax = plt.axes(projection='3d')
@@ -237,6 +238,8 @@ def calc():
         write_file()
 
         plt.show()
+
+        return rts
 
 
     return f
@@ -319,14 +322,14 @@ class Value:
         self.lb_value.grid(row=r, column=1)
     
 def draw(data):
-    calc()(data, nfft_val.get(), nperseg_val.get(), max_mse.get(), max_slope.get(), thresh.get())
+    return calc()(data, nfft_val.get(), nperseg_val.get(), max_mse.get(), max_slope.get(), thresh.get())
 
 def main(data, window, close_call):
     global nfft_val, nperseg_val, max_mse_val, max_mse, max_slope, thresh, axis, glob_data, glob_freqs, glob_rts, txt_filename, all_rts
 
 
     #glob_rts = None
-    fig, axis = plt.subplots(1, 4)
+    fig, axis = plt.subplots(1, 3, figsize=(10, 10))
 
     #window = tk.Tk()
 
@@ -367,7 +370,7 @@ def main(data, window, close_call):
     #data = data
     glob_data = data
 
-    draw(data)
+    return draw(data)
     #window.mainloop()
 
 if __name__ == "__main__":

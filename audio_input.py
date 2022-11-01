@@ -7,11 +7,44 @@ import sounddevice as sd
 
 import matplotlib.pyplot as plt
 
-from tmp import to_dB, main
+from tmp import SAMPLERATE, to_dB, main
 class States:
     LISTENING = "listening"
     RECORDING = "recording"
     DISABLED = "disabled"
+
+
+def scan(data: np.ndarray) -> list[tuple[int, int]]:
+
+    frame_size = 1136
+    min_interval_len = SAMPLERATE
+
+    split_data = np.array_split(data, int(len(data) / frame_size))
+    state = "listen"
+
+    intervals = []
+    start = stop = None
+
+    for idx, frame in enumerate(split_data):
+        data_dB = to_dB(frame)
+
+        # get max amp
+        max_val = np.max(data_dB)
+        print(type(max_val))
+
+        if max_val > 69 and state == "listen":
+            state = "record"
+            start = idx * frame_size
+
+        if max_val < 55 and state == "record":
+
+            stop = idx * frame_size
+            if stop - start > min_interval_len:
+                intervals.append((start, stop))
+            start = stop = None
+            state = "listen"
+
+    return intervals
 
 class AudioInput:
 
@@ -69,13 +102,23 @@ class AudioInput:
     def load_file(self):
         import audiofile
         data, _ = audiofile.read("data/2022-09-24_SLM_001_Audio_FS129.7dB(PK)_00.wav")
-        data = data[int(1.29 * 10 ** 6): int(1.30 * 10 **6)]
-        main(data, self.window, self._toggle_rec)
-        l = len(data)
-        data, _ = audiofile.read("data/2022-09-24_SLM_002_Audio_FS129.7dB(PK)_00.wav")
-        data = data[int(1.268 * 10 ** 6): int(1.268 * 10 ** 6) + l]
+        data2, _ = audiofile.read("data/2022-09-24_SLM_002_Audio_FS129.7dB(PK)_00.wav")
+        data = np.concatenate((data, data2))
+        #split_data = np.array_split(data, int(len(data) / 1136))
 
-        main(data, self.window, self._toggle_rec)
+
+        #for d in split_data:
+        #    self._audio_callback(d, len(d), None, None)
+        print("intervals", scan(data))
+        for start, stop in scan(data):
+            rts = main(data[stop - 15000 : stop], self.window, self._toggle_rec)
+
+        #data = data[int(1.29 * 10 ** 6): int(1.30 * 10 **6)]
+        #main(data, self.window, self._toggle_rec)
+        #l = len(data)
+        #data = data[int(1.268 * 10 ** 6): int(1.268 * 10 ** 6) + l]
+
+        #main(data, self.window, self._toggle_rec)
 
 
 
@@ -91,7 +134,12 @@ class AudioInput:
             print(status, file=sys.stderr)
 
         # decode channels
-        data = indata[:, self.mapping]
+        if len(indata.shape) > 1: 
+            data = indata[:, self.mapping]
+
+        else:
+            #print("soos")
+            data = indata
 
         # linearize
         data_dB = to_dB(data)
@@ -136,13 +184,18 @@ class AudioInput:
 
                 self.state = States.DISABLED
                 
-                main(data_slice, self.window, self._toggle_rec)
+                main(data_slice[len(data_slice) - 15000:], self.window, self._toggle_rec)
 
         #print(len(data))
 
 
 if __name__ == "__main__":
-    dev = AudioInput([1], 44100)
+    dev = AudioInput([1], 48000)
     print(dev.get_data())
+
+
+
+
+
 
 
