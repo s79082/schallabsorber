@@ -1,13 +1,17 @@
 import queue as qu
+from re import M
 import sys
 from tkinter import DISABLED, S
 import tkinter
 import numpy as np
+from sklearn.metrics import mean_squared_error
 import sounddevice as sd
+import scipy.signal as sig
+
 
 import matplotlib.pyplot as plt
 
-from tmp import SAMPLERATE, to_dB, main
+from tmp import DB_DIFF, SAMPLERATE, to_dB, main
 class States:
     LISTENING = "listening"
     RECORDING = "recording"
@@ -102,32 +106,16 @@ class AudioInput:
     def load_file(self):
         import audiofile
         data, _ = audiofile.read("data/2022-09-24_SLM_001_Audio_FS129.7dB(PK)_00.wav")
-        data2, _ = audiofile.read("data/2022-09-24_SLM_002_Audio_FS129.7dB(PK)_00.wav")
-        data = np.concatenate((data, data2))
-        #split_data = np.array_split(data, int(len(data) / 1136))
+        #data2, _ = audiofile.read("data/2022-09-24_SLM_002_Audio_FS129.7dB(PK)_00.wav")
+        #data = np.concatenate((data, data2))
 
+        intervals = scan(data)
 
-        #for d in split_data:
-        #    self._audio_callback(d, len(d), None, None)
-        print("intervals", scan(data))
-        for start, stop in scan(data):
-            rts = main(data[stop - 15000 : stop], self.window, self._toggle_rec)
-
-        #data = data[int(1.29 * 10 ** 6): int(1.30 * 10 **6)]
-        #main(data, self.window, self._toggle_rec)
-        #l = len(data)
-        #data = data[int(1.268 * 10 ** 6): int(1.268 * 10 ** 6) + l]
-
-        #main(data, self.window, self._toggle_rec)
-
-
-
+        for start, stop in intervals:
+            self.plot(data[stop - 15000 : stop])
 
     def get_data(self) -> np.ndarray:
         return self.record_data
-
-    def get_data_length(self) -> int:
-        return len(self.record_data)
 
     def _audio_callback(self, indata, frames, _, status):
         if status:
@@ -156,7 +144,7 @@ class AudioInput:
                 # TODO start recording
                 print("start")
                 #self.record_data = np.roll(self.record_data, -shift, axis=0)
-                #self.record_data[-shift:, :] = data
+                #self.record_data[-shift:, :] = dxata
                 #self.record_data = np.roll(self.record_data, -shift, axis=0)
                 self.state = States.RECORDING
                 self.n_frames = 0
@@ -186,8 +174,86 @@ class AudioInput:
                 
                 main(data_slice[len(data_slice) - 15000:], self.window, self._toggle_rec)
 
-        #print(len(data))
+    def plot(self, data: np.ndarray):
 
+        fig, axis = plt.subplots(1, 3, figsize=(10, 10))
+
+        time_axis = np.arange(len(data)) / SAMPLERATE
+
+        axis[0].plot(time_axis, to_dB(data))
+        axis[0].set_xlabel("time (s)")
+        axis[0].set_ylabel("Pegel (dB)")
+
+        spec = get_spectogram(data, {"nfft": 2048, "nperseg": 64, "sr": 48000})
+
+        val_dbs = to_dB(spec.values)
+
+        axis[1].pcolormesh(spec.times, spec.frequencies, val_dbs)
+        axis[1].set_xlabel("time (s)")
+        axis[1].set_ylabel("frequency (Hz)")
+
+        fs, rts, _, _ = calc_rt(spec, {"thresh": 0})
+
+        axis[2].scatter(fs, rts, s=5)
+        axis[2].set_xlabel("frequency (Hz)")
+        axis[2].set_ylabel("RT60 (s)")
+        
+        fig.show()
+
+class Spectrogram:
+    frequencies: np.ndarray
+    times: np.ndarray
+    values: np.ndarray
+
+def get_spectogram(data: np.ndarray, args: dict) -> Spectrogram:
+    
+    spec = Spectrogram()
+
+    spec.frequencies, spec.times, spec.values = sig.spectrogram(data, fs=args["sr"], window="hann", nfft=args["nfft"], nperseg=args["nperseg"])
+
+    return spec
+
+
+def calc_rt(spec: Spectrogram, args: dict)       ->     tuple:
+
+    fs, ts, M = spec.frequencies, spec.times, spec.values
+
+    rts = np.zeros(fs.shape)
+    mses = np.zeros(fs.shape)
+    slopes = np.zeros(fs.shape)
+    
+    for f_idx, amps in enumerate(M):
+
+        amps_db = to_dB(amps)
+
+        if np.max(amps_db) < args["thresh"]:
+            continue
+
+        # linear regression 
+        model = np.polyfit(ts, amps_db, 1)
+        # get linear parameters
+            
+        slope = model[0]
+        intersect = model[1]
+
+        # amp we want 
+        y_end = intersect - DB_DIFF
+
+        # get predicted timestep
+        t_predict = (y_end - intersect) / slope
+
+        # calc mse for linear check
+        amps_predicted = slope * ts + intersect
+    
+        mses[f_idx] = mean_squared_error(amps_db, amps_predicted)
+
+        slopes[f_idx] = slope
+
+        if t_predict > 0:
+            rts[f_idx] = t_predict
+
+        
+        return (fs, rts, mses, slopes)
 
 if __name__ == "__main__":
     dev = AudioInput([1], 48000)
