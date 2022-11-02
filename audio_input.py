@@ -2,7 +2,7 @@ import queue as qu
 from re import M
 import sys
 from tkinter import DISABLED, S
-import tkinter
+import tkinter as tk
 import numpy as np
 from sklearn.metrics import mean_squared_error
 import sounddevice as sd
@@ -65,22 +65,52 @@ class AudioInput:
 
         print(length)
 
-        self.window = tkinter.Tk()
+        self.window = tk.Tk()
 
-        self.btn_rec_var = tkinter.StringVar(master=self.window, value="DISABLED")
+        self.btn_rec_var = tk.StringVar(master=self.window, value="DISABLED")
+        self.btn_rec = tk.Button(master=self.window, textvariable=self.btn_rec_var, command=self._toggle_rec)
+        self.btn_rec.grid(row=6, column=0)
 
-        self.btn_rec = tkinter.Button(master=self.window, textvariable=self.btn_rec_var, command=self._toggle_rec)
-        self.btn_rec.grid(row=0, column=0)
+        self.btn_wav = tk.Button(master=self.window, text="load WAV file", command=self.load_file)
+        self.btn_wav.grid(row=7, column=1)
 
-        self.btn_wav = tkinter.Button(master=self.window, text="load WAV file", command=self.load_file)
-        self.btn_wav.grid(row=1, column=0)
+        self.nfft = tk.IntVar(master=self.window)
+        self.nfft.set(2048)
+        self.nfft_val = Value(self.window, 0, self.nfft, "nfft", mode="")
+
+        self.nperseg = tk.IntVar(master=self.window)
+        self.nperseg.set(64)
+        self.nperseg_val = Value(self.window, 1, self.nperseg, "nperseg", mode="")
+
+        max_mse = tk.IntVar(master=self.window)
+        max_mse.set(60)
+        max_mse_val = Value(self.window, 2, max_mse, "maximaler Fehler")
+
+        max_slope = tk.IntVar(master=self.window)
+        max_slope.set(-20)
+        max_slope_val = Value(self.window, 3, max_slope, "maximaler Anstieg")
+
+        thresh = tk.IntVar(master=self.window)
+        thresh.set(0)
+        thresh_val = Value(self.window, 4, thresh, "Schwelle für RT Messung [dB]")
 
 
+        btn_writefile = tk.Button(master=self.window, text="write rt to file", command=None)
+        btn_writefile.grid(row=5, column=0)
+
+        btn_rec = tk.Button(master=self.window, text="REC", command=None)
+        btn_rec.grid(row=5, column=3)
+
+        txt_filename = tk.Text(master=self.window, width=20, height=1)
+        txt_filename.grid(row=5, column=1)
+        txt_filename.insert("1.0", "out.csv")
+
+        btn_wav = tk.Button(master=self.window, text="save sample as WAV", command=None)
+        btn_wav.grid(row=6, column=1)
 
         self.record_data = np.zeros((length * 100, len(channels)))
 
         self.state = States.DISABLED
-
 
         self.stream = sd.InputStream(
             device=None, channels=max(channels),
@@ -141,11 +171,8 @@ class AudioInput:
 
             if self.state == States.LISTENING:
 
-                # TODO start recording
+                # start recording
                 print("start")
-                #self.record_data = np.roll(self.record_data, -shift, axis=0)
-                #self.record_data[-shift:, :] = dxata
-                #self.record_data = np.roll(self.record_data, -shift, axis=0)
                 self.state = States.RECORDING
                 self.n_frames = 0
                 pass
@@ -155,7 +182,7 @@ class AudioInput:
 
         if self.state ==  States.RECORDING:
             # still recording
-            #print("still rec")
+            
             self.record_data = np.roll(self.record_data, -shift, axis=0)
             self.record_data[-shift:, :] = data
             self.n_frames += frames
@@ -163,16 +190,17 @@ class AudioInput:
         if max_val < 70:
 
             if self.state == States.RECORDING:
-                # TODO finish recording
+                # finish recording
                 self.state = States.LISTENING
                 print("stop")
                 print(self.n_frames / self.samplerate)
                 
+                # remove zero values
                 data_slice = np.array([ x for x in self.record_data if x != 0 ])
 
                 self.state = States.DISABLED
                 
-                main(data_slice[len(data_slice) - 15000:], self.window, self._toggle_rec)
+                self.plot(data_slice)
 
     def plot(self, data: np.ndarray):
 
@@ -184,7 +212,7 @@ class AudioInput:
         axis[0].set_xlabel("time (s)")
         axis[0].set_ylabel("Pegel (dB)")
 
-        spec = get_spectogram(data, {"nfft": 2048, "nperseg": 64, "sr": 48000})
+        spec = get_spectogram(data, {"nfft": self.nfft.get(), "nperseg": self.nperseg.get(), "sr": 48000})
 
         val_dbs = to_dB(spec.values)
 
@@ -199,7 +227,6 @@ class AudioInput:
         axis[2].set_ylabel("RT60 (s)")
         
         fig.show()
-
 class Spectrogram:
     frequencies: np.ndarray
     times: np.ndarray
@@ -212,7 +239,6 @@ def get_spectogram(data: np.ndarray, args: dict) -> Spectrogram:
     spec.frequencies, spec.times, spec.values = sig.spectrogram(data, fs=args["sr"], window="hann", nfft=args["nfft"], nperseg=args["nperseg"])
 
     return spec
-
 
 def calc_rt(spec: Spectrogram, args: dict)       ->     tuple:
 
@@ -231,8 +257,8 @@ def calc_rt(spec: Spectrogram, args: dict)       ->     tuple:
 
         # linear regression 
         model = np.polyfit(ts, amps_db, 1)
-        # get linear parameters
-            
+
+        # get linear parameters     
         slope = model[0]
         intersect = model[1]
 
@@ -245,15 +271,57 @@ def calc_rt(spec: Spectrogram, args: dict)       ->     tuple:
         # calc mse for linear check
         amps_predicted = slope * ts + intersect
     
+        # set mse
         mses[f_idx] = mean_squared_error(amps_db, amps_predicted)
 
+        # set slopes
         slopes[f_idx] = slope
 
+        # set rt
         if t_predict > 0:
             rts[f_idx] = t_predict
 
-        
         return (fs, rts, mses, slopes)
+
+class Value:
+
+    def on_inc(self):
+        if self.mode == "linear":
+            self.val.set(self.val.get() + 1)
+        else:
+            self.val.set(int(self.val.get() * 2))
+        
+        #draw(glob_data)
+        
+
+    def on_dec(self):
+        if self.mode == "linear":
+            self.val.set(self.val.get() - 1)
+        else:
+            self.val.set(int(self.val.get() / 2))
+        #draw(glob_data)
+
+    def get(self):
+        return self.val.get()
+
+        
+
+    def __init__(self, m: tk.Misc, r: int, var, text: str, mode: str = "linear") -> None:
+        self.val = var
+        #self.val.set(256)
+        self.mode = mode
+
+        self.lb_text = tk.Label(master=m, text=text, width=10)
+        self.lb_text.grid(row=r, column=0)
+    
+        self.btn_inc = tk.Button(master=m, text="+", command=self.on_inc, width=10)
+        self.btn_inc.grid(row=r, column=2)
+
+        self.btn_dec = tk.Button(master=m, text="-", command=self.on_dec, width=10)
+        self.btn_dec.grid(row=r, column=3)
+
+        self.lb_value = tk.Label(master=m, textvariable=self.val, width=10)
+        self.lb_value.grid(row=r, column=1)
 
 if __name__ == "__main__":
     dev = AudioInput([1], 48000)
