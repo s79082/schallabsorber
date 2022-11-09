@@ -34,7 +34,6 @@ def scan(data: np.ndarray) -> list[tuple[int, int]]:
 
         # get max amp
         max_val = np.max(data_dB)
-        print(type(max_val))
 
         if max_val > 69 and state == "listen":
             state = "record"
@@ -91,7 +90,7 @@ class AudioInput:
         max_slope_val = Value(self.window, 3, max_slope, "maximaler Anstieg")
 
         thresh = tk.IntVar(master=self.window)
-        thresh.set(0)
+        thresh.set(-10)
         thresh_val = Value(self.window, 4, thresh, "Schwelle für RT Messung [dB]")
 
 
@@ -112,12 +111,18 @@ class AudioInput:
 
         self.state = States.DISABLED
 
-        self.stream = sd.InputStream(
-            device=None, channels=max(channels),
-            samplerate=samplerate, callback=self._audio_callback)
+        try:
+            self.stream = sd.InputStream(
+                device=None, channels=max(channels),
+                samplerate=samplerate, callback=self._audio_callback)
 
-        with self.stream as s:
+            with self.stream as s:
+                self.window.mainloop()
+        except:
+            self.stream = None
             self.window.mainloop()
+
+        
 
 
     def _toggle_rec(self):
@@ -156,7 +161,6 @@ class AudioInput:
             data = indata[:, self.mapping]
 
         else:
-            #print("soos")
             data = indata
 
         # linearize
@@ -220,7 +224,9 @@ class AudioInput:
         axis[1].set_xlabel("time (s)")
         axis[1].set_ylabel("frequency (Hz)")
 
-        fs, rts, _, _ = calc_rt(spec, {"thresh": 0})
+        fs, rts, _, _ = calc_rt(spec, {"thresh": -20})
+
+        print(rts)
 
         axis[2].scatter(fs, rts, s=5)
         axis[2].set_xlabel("frequency (Hz)")
@@ -281,7 +287,7 @@ def calc_rt(spec: Spectrogram, args: dict)       ->     tuple:
         if t_predict > 0:
             rts[f_idx] = t_predict
 
-        return (fs, rts, mses, slopes)
+    return (fs, rts, mses, slopes)
 
 class Value:
 
