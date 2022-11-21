@@ -62,6 +62,9 @@ class AudioInput:
 
         self.samplerate = samplerate
 
+        self.acc_rts = None
+        self.n_rts = 0
+
         print(length)
 
         self.window = tk.Tk()
@@ -140,14 +143,18 @@ class AudioInput:
 
     def load_file(self):
         import audiofile
-        data, _ = audiofile.read("data/2022-09-24_SLM_001_Audio_FS129.7dB(PK)_00.wav")
+        data, _ = audiofile.read("D:/Downloads/TransferXL-08j50XPJzvhhC9/Messungen 21_11_2022/TestN333-1/2022-11-23_SLM_000_Audio_FS129.7dB(PK)_00.wav")
+        #data, _ = audiofile.read("data/2022-09-24_SLM_001_Audio_FS129.7dB(PK)_00.wav")
         #data2, _ = audiofile.read("data/2022-09-24_SLM_002_Audio_FS129.7dB(PK)_00.wav")
         #data = np.concatenate((data, data2))
 
         intervals = scan(data)
 
+        self.n_intervals = len(intervals)
+
         for start, stop in intervals:
             self.plot(data[stop - 15000 : stop])
+
 
     def get_data(self) -> np.ndarray:
         return self.record_data
@@ -208,7 +215,8 @@ class AudioInput:
 
     def plot(self, data: np.ndarray):
 
-        fig, axis = plt.subplots(1, 3, figsize=(10, 10))
+        fig, axis = plt.subplots(1, 4, figsize=(10, 10))
+        fig.canvas.manager.full_screen_toggle()
 
         time_axis = np.arange(len(data)) / SAMPLERATE
 
@@ -228,9 +236,29 @@ class AudioInput:
 
         print(rts)
 
+        fs = fs[:300]
+        rts = rts[:300]
+
+        if self.acc_rts is None:
+            self.acc_rts = np.zeros(fs.shape)
+        self.acc_rts += rts
+        self.n_rts += 1
+
+        #plt.scatter(fs, self.acc_rts / self.n_rts, s=5)
+        #plt.show()
+        print("length", len(fs))
+
+       
+
         axis[2].scatter(fs, rts, s=5)
         axis[2].set_xlabel("frequency (Hz)")
         axis[2].set_ylabel("RT60 (s)")
+        #axis[2].scatter([250, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000],
+        #    [0.98, 0.53, 0.82, 0.8, 0.6, 0.71, 0.69, 0.63, 0.68, 0.64, 0.63, 0.63, 0.63], c="green", s=5)
+
+        axis[3].scatter(fs, self.acc_rts / self.n_rts, s=5)
+        axis[3].set_xlabel("frequency (Hz)")
+        axis[3].set_ylabel("avg RT60 (s) [of {} samples{}] ".format(str(self.n_rts), " FINAL" if self.n_rts == self.n_intervals else ""))
         
         fig.show()
 class Spectrogram:
