@@ -20,38 +20,95 @@ class States:
 
 def scan(data: np.ndarray) -> list[tuple[int, int]]:
 
-    frame_size = 1136
-    min_interval_len = SAMPLERATE
+    # frame_size = int(1136 / 2)
+    # min_interval_len = SAMPLERATE
 
-    split_data = np.array_split(data, int(len(data) / frame_size))
-    state = "listen"
+    # split_data = np.array_split(data, int(len(data) / frame_size))
+    # state = "listen"
 
-    intervals = []
-    start = stop = None
+    # intervals = []
+    # # start = stop = None
 
-    for idx, frame in enumerate(split_data):
-        data_dB = to_dB(frame)
+    # maximas = []
 
-        # get max amp
-        max_val = np.max(data_dB)
+    # # _data = []
 
-        if max_val > 69 and state == "listen":
-            state = "record"
-            start = idx * frame_size
+    # for idx, frame in enumerate(split_data):
+    #     data_dB = to_dB(frame)
+    #     print(len(frame))
 
-        if max_val < 55 and state == "record":
+    #     # get max amp
+    #     max_val = np.max(data_dB)
+    #     maximas.append(max_val)
 
-            stop = idx * frame_size
-            if stop - start > min_interval_len:
-                intervals.append((start, stop))
-            start = stop = None
-            state = "listen"
+    #     if max_val > 69 and state == "listen":
+    #         state = "record"
+    #         start = idx * frame_size
 
-    return intervals
+    #     if max_val < 55 and state == "record":
+
+    #         stop = idx * frame_size
+    #         if stop - start > min_interval_len:
+    #             intervals.append((start, stop))
+    #             pass
+    #         start = stop = None
+    #         state = "listen"
+
+
+    #return intervals
+
+    #tmp = np.diff(maximas)
+    #plt.plot(np.diff(maximas))
+    #plt.show()
+    #plt.plot(np.diff(np.diff(maximas)))
+    #plt.show()
+    #plt.plot(np.diff(np.diff(np.diff(maximas))))
+    #plt.show()
+
+    # state = "over"
+    # print(len(tmp))
+
+    # for idx, diff in enumerate(tmp):
+
+    #     print("lol", idx)
+
+    #     if diff < 0 and state == "over":
+    #         print(diff)
+    #         state = "under"
+    #         start = idx * frame_size
+
+    #     if max_val > 0 and state == "under":
+
+    #         print("over")
+    #         stop = idx * frame_size
+    #         if stop - start > min_interval_len:
+    #             intervals.append((start, stop))
+    #         start = stop = None
+    #         state = "over"
+    #print(intervals)
+
+    #interval_len = int(0.016910 * (10^6))
+    interval_len = 20000
+    start = 2403090
+    #start = int(2.403090 * (10^6))
+    stop = start + interval_len
+
+    #for i in range(10):
+
+    _20_sec = SAMPLERATE * 20
+
+    #tmp = [(start, stop), (start + 960000, stop + 960000)]
+
+    tmp = []
+    for i in range(10):
+        print(i)
+        tmp.append((start + i * _20_sec, stop + i *  _20_sec))
+
+    print(tmp)
+
+    return tmp
 
 class AudioInput:
-
-    q = qu.Queue()
 
     def __init__(self, channels, samplerate) -> None:
         self.mapping: list = [c - 1 for c in channels]  # Channel numbers start with 1
@@ -64,6 +121,8 @@ class AudioInput:
 
         self.acc_rts = None
         self.n_rts = 0
+
+        self.all_rts = []
 
         print(length)
 
@@ -143,17 +202,43 @@ class AudioInput:
 
     def load_file(self):
         import audiofile
-        data, _ = audiofile.read("D:/Downloads/TransferXL-08j50XPJzvhhC9/Messungen 21_11_2022/TestN333-1/2022-11-23_SLM_000_Audio_FS129.7dB(PK)_00.wav")
+        #data, sr = audiofile.read("D:/Downloads/TransferXL-08j50XPJzvhhC9/Messungen 21_11_2022/TestN333-1/2022-11-23_SLM_000_Audio_FS129.7dB(PK)_00.wav")
+        #data, sr = audiofile.read("D:/Downloads/Container221122/Container221122/2022-11-24_SLM_000_Audio_FS129.7dB(PK)_00.wav")
+        data, sr = audiofile.read("data/2022-11-23_SLM_000_Audio_FS129.7dB(PK)_00.wav")
         #data, _ = audiofile.read("data/2022-09-24_SLM_001_Audio_FS129.7dB(PK)_00.wav")
         #data2, _ = audiofile.read("data/2022-09-24_SLM_002_Audio_FS129.7dB(PK)_00.wav")
         #data = np.concatenate((data, data2))
+
+        plt.plot(data)
+        plt.show()
 
         intervals = scan(data)
 
         self.n_intervals = len(intervals)
 
+        plt.plot(data)
+
         for start, stop in intervals:
-            self.plot(data[stop - 15000 : stop])
+            plt.vlines([start, stop], 0, np.max(data), colors=['red'])
+
+        plt.show()
+
+        for start, stop in intervals:
+            #self.plot(data[start : stop])
+            fs, rts, _, _ = calc_rt(get_spectogram(data[start : stop], {"nfft": self.nfft.get(), "nperseg": self.nperseg.get(), "sr": 48000}), {"thresh": -20})
+            #self.plot(data[start : stop])
+            pass
+        return
+
+
+        
+
+
+        for idx, (start, stop) in enumerate(intervals):
+            if idx == 0 or idx == 1:
+                continue
+            self.plot(data[stop - int(48000 * 0.5) : stop - 10000])
+        
 
 
     def get_data(self) -> np.ndarray:
@@ -215,7 +300,9 @@ class AudioInput:
 
     def plot(self, data: np.ndarray):
 
-        fig, axis = plt.subplots(1, 4, figsize=(10, 10))
+        self.fig, self.axis = plt.subplots(1, 4, figsize=(10, 10))
+        fig = self.fig
+        axis = self.axis
         fig.canvas.manager.full_screen_toggle()
 
         time_axis = np.arange(len(data)) / SAMPLERATE
@@ -236,8 +323,10 @@ class AudioInput:
 
         print(rts)
 
-        fs = fs[:300]
-        rts = rts[:300]
+        #fs = fs[:300]
+        #rts = rts[:300]
+
+
 
         if self.acc_rts is None:
             self.acc_rts = np.zeros(fs.shape)
@@ -248,9 +337,15 @@ class AudioInput:
         #plt.show()
         print("length", len(fs))
 
-       
+        self.all_rts.append(rts)
 
-        axis[2].scatter(fs, rts, s=5)
+        #all_figure, a = plt.subplots()
+        #a = plt.subplot(1, 1, 1)
+
+        for graph in self.all_rts:
+            axis[2].scatter(fs, graph, s=5)
+            #a.scatter(fs, graph, s=5)
+        #axis[2].scatter(fs, rts, s=5)
         axis[2].set_xlabel("frequency (Hz)")
         axis[2].set_ylabel("RT60 (s)")
         #axis[2].scatter([250, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000],
@@ -274,9 +369,18 @@ def get_spectogram(data: np.ndarray, args: dict) -> Spectrogram:
 
     return spec
 
-def calc_rt(spec: Spectrogram, args: dict)       ->     tuple:
+def calc_rt(spec: Spectrogram, args: dict)       ->     tuple[int, int, int, int]:
 
     fs, ts, M = spec.frequencies, spec.times, spec.values
+
+    f_min = 300
+    f_max = 6000
+
+    freq_slice = np.where((fs >= f_min) & (fs <= f_max))
+
+    fs = fs[freq_slice]
+    M = M[freq_slice,:][0]
+
 
     rts = np.zeros(fs.shape)
     mses = np.zeros(fs.shape)
@@ -286,11 +390,21 @@ def calc_rt(spec: Spectrogram, args: dict)       ->     tuple:
 
         amps_db = to_dB(amps)
 
+        amps_slice = np.array_split(amps_db, 10)
+
+        max_amps = np.array(list(map(np.average, amps_slice)))
+
+        _ts = np.linspace(0, max(ts), num=10)
+
+        #plt.plot(max_amps)
+        #plt.show()
+
         if np.max(amps_db) < args["thresh"]:
             continue
 
         # linear regression 
         model = np.polyfit(ts, amps_db, 1)
+       # model = np.polyfit(_ts, max_amps, 1)
 
         # get linear parameters     
         slope = model[0]
@@ -307,6 +421,17 @@ def calc_rt(spec: Spectrogram, args: dict)       ->     tuple:
     
         # set mse
         mses[f_idx] = mean_squared_error(amps_db, amps_predicted)
+
+        graph_fit = slope * ts + intersect
+        #_graph_fit = slope * _ts + intersect
+
+        if fs[f_idx] > 3080 and fs[f_idx] < 3100:
+
+            print("idx", f_idx)
+            plt.title("frequency {}, slope {}, mse {}".format(fs[f_idx], slope, mses[f_idx]))
+            plt.plot(amps_db)
+            plt.plot(graph_fit)
+            plt.show()
 
         # set slopes
         slopes[f_idx] = slope
