@@ -17,6 +17,24 @@ class States:
     RECORDING = "recording"
     DISABLED = "disabled"
 
+class Meassurement:
+
+    rts : np.ndarray
+    fs : np.ndarray
+    mses: np.ndarray
+    slope: np.ndarray
+
+    def __init__(self, start, stop) -> None:
+        self.start = start
+        self.stop = stop
+
+    def is_calculated(self):
+        return self.rt is not None and self.fs is not None
+
+    def calculate(self, data: np.ndarray, audio_input_obj):
+        self.fs, self.rts, self.mses, _ = calc_rt(get_spectogram(data[self.start : self.stop], {"nfft": audio_input_obj.nfft.get(), "nperseg": audio_input_obj.nperseg.get(), "sr": 48000}), {"thresh": -20})
+
+
 
 def scan(data: np.ndarray) -> list[tuple[int, int]]:
 
@@ -124,6 +142,9 @@ class AudioInput:
 
         self.all_rts = []
 
+        self.measurenents = []
+
+
         print(length)
 
         self.window = tk.Tk()
@@ -184,7 +205,9 @@ class AudioInput:
             self.stream = None
             self.window.mainloop()
 
-        
+    def draw_rts(self):
+        pass
+
 
 
     def _toggle_rec(self):
@@ -201,33 +224,277 @@ class AudioInput:
             self.btn_rec_var.set(self.state)
 
     def load_file(self):
-        import audiofile
+        global start_line, stop_line
+
+        def redraw_vlines(vlines: list[tuple[int, str]]):
+
+            xs = list(map(lambda l: l[0], vlines))
+            colors = list(map(lambda l: l[1], vlines))
+
+            fig.get_axes()[0].vlines(xs, frame_min, frame_max, colors=colors)
+            
+
+        from audiofile import read
+        from tkinter.filedialog import askopenfilename
+
+        file_name = askopenfilename()
+
         #data, sr = audiofile.read("D:/Downloads/TransferXL-08j50XPJzvhhC9/Messungen 21_11_2022/TestN333-1/2022-11-23_SLM_000_Audio_FS129.7dB(PK)_00.wav")
         #data, sr = audiofile.read("D:/Downloads/Container221122/Container221122/2022-11-24_SLM_000_Audio_FS129.7dB(PK)_00.wav")
-        data, sr = audiofile.read("data/2022-11-23_SLM_000_Audio_FS129.7dB(PK)_00.wav")
+        
+        #data, sr = audiofile.read("data/2022-11-23_SLM_000_Audio_FS129.7dB(PK)_00.wav")
+        
         #data, _ = audiofile.read("data/2022-09-24_SLM_001_Audio_FS129.7dB(PK)_00.wav")
         #data2, _ = audiofile.read("data/2022-09-24_SLM_002_Audio_FS129.7dB(PK)_00.wav")
         #data = np.concatenate((data, data2))
+        data, sr = read(file_name)
 
-        plt.plot(data)
-        plt.show()
+        from tkinter.messagebox import askyesno
+
+        #plt.plot(data)
+        #plt.show()
 
         intervals = scan(data)
 
         self.n_intervals = len(intervals)
 
-        plt.plot(data)
+        vlines :list[tuple[int, str]] = []
 
-        for start, stop in intervals:
-            plt.vlines([start, stop], 0, np.max(data), colors=['red'])
+        for interval_idx, (start, stop) in enumerate(intervals):
+            
+            # border from the lines 
+            frame_border = 10000
+
+            frame_start = start - frame_border
+            frame_stop = stop + frame_border
+
+            data_frame = data[frame_start : frame_stop]
+
+            frame_min = np.min(data_frame)
+            frame_max = np.max(data_frame)
+
+            frame_len = len(data_frame)
+
+            # the time over the whole file
+            global_time = np.arange(start=frame_start, stop=frame_start + frame_len, step=1)
+
+            # draw frame
+            plt.plot(global_time, data_frame)
+
+            # the original start stop line
+            start_line = (start, "orange")
+            stop_line = (stop, "orange")
+
+            new_start_line = new_stop_line = None
+
+            title = "interval nr {}".format(interval_idx)
+
+            fig = plt.gcf()
+
+            # draw lines
+            redraw_vlines([start_line, stop_line])
+
+            plt.show(block=False)
+            
+            def onclick(event):
+
+                global start_line
+
+                plt.clf()
+                plt.plot(global_time, data_frame)
+                #redraw_vlines([start_line, stop_line])
+
+                plt.show(block=False)
+
+                # get coordinates
+                ix = int(event.xdata)
+
+                new_start_line = (ix, "red")
+
+                # show new start line
+                redraw_vlines([new_start_line, stop_line, start_line])
+                
+                plt.show(block=False)
+                
+                accept = askyesno(title, "accept start {} ?".format(ix))
+
+                if accept:
+                    # set new start
+                    start_line = new_start_line
+                    plt.cla()
+                    plt.show()
+       
+
+            accept = askyesno(title, "accept start {} ?".format(start))
+
+            cid = fig.canvas.mpl_connect('button_press_event', onclick)
+
+            if accept:
+                plt.cla()
+            else:
+                
+                plt.show()
+
+            print(start_line)
+
+            self.measurenents.append(Meassurement(start_line[0], stop))
+
+            fig.canvas.mpl_disconnect(cid)
+
+        # TODO handle stop input
+
+        print(self.measurenents)
+        input()
+
+        for messure in self.measurenents:
+            messure.calculate(data, self)
+
+        for gr in self.measurenents:
+            plt.plot(gr.fs, gr.rts)
+
+        plt.show(block=False)
+
+        print("done start")
+
+
+
+        # draw list
+        # 
+        graphs = tk.Tk()
+
+        show: list[tk.BooleanVar] = []
+ 
+        for id, messure in enumerate(self.measurenents):
+            show += [tk.BooleanVar(master=graphs, value=True)]
+            label = tk.Label(master=graphs, text="{}, {}".format(messure.start, messure.stop))
+            #checkbox = tk.Checkbutton(master=graphs, command=check_box(id), variable=var, onvalue=True, offvalue=False)
+
+
+            
+        #     plt.plot(global_time, data_frame)
+
+        #     coords = []
+
+        #     fig = plt.gcf()
+        #     # plot set borders
+        #     # TODO show actual updated start border
+        #     fig.get_axes()[0].vlines([frame_border, frame_len - frame_border], np.min(data_frame), np.max(data_frame), color=["green"])
+
+        #     plt.show(block=False)
+
+        #     def onclick(event):
+        #         global coords, ix, iy, accept
+
+        #         plt.clf()
+        #         plt.plot(global_time, data_frame)
+        #         plt.show(block=True)
+
+        #         # get coordinates
+        #         ix = event.xdata
+
+        #         #coords.append((ix, iy))
+
+        #         #print(coords)
+
+        #         fig.get_axes()[0].vlines([ix], np.min(data), np.max(data), color=["red"])
+                
+        #         plt.show(block=True)
+
+        #         accept = askyesno("accept stop", "accept stop {} ?".format(ix))
+
+        #         if accept:
+        #             print()
+        #             plt.close()
+
+        #         #if accept:
+
+
+        #     cid = fig.canvas.mpl_connect('button_press_event', onclick)
+
+        #     accept = askyesno("accept stop", "accept stop {} ?".format(stop))
+
+        #     #while not accept:
+        #     if accept:
+        #         upper = stop
+                
+        #     plt.show()
+
+        #     print("done")
+
+        #     vlines = []
+                
+
+        # #fig, ax = plt.subplots(1)
+        # #ax = plt.subplot(0)
+
+        # #print(type(ax))
+        # plt.show(block=False)
+
+        # #ax.pop().plot(data)
+        # #print(askinteger("test","star sample", initialvalue=60000, minvalue=0, maxvalue=len(data)))
+        # #ax.pop().axvline(start, 0, 1)
+
+        # #for start, stop in intervals:
+        # #    plt.vlines([start, stop], 0, np.max(data), colors=['red'])
+            
+        # plt.show()
+
+        for mes in self.measurenents:
+            pass
+
+        graphs = tk.Tk()
+
+        ints = {}
+        for idx, inter in enumerate(intervals):
+            ints[idx] = (inter, tk.BooleanVar(master=graphs, value=True))
+
+        def check_box(id: int):
+            def f():
+                
+                plt.cla()
+
+                rts_acc = None
+
+                n_rts = 0
+
+                for key, val in ints.items():
+
+                    _start, _stop = val[0]
+                    v: tk.BooleanVar = val[1]
+
+                    if v.get():
+
+                        n_rts += 1
+                        fs, rts, _, _ = calc_rt(get_spectogram(data[_start : _stop], {"nfft": self.nfft.get(), "nperseg": self.nperseg.get(), "sr": 48000}), {"thresh": -20})
+                        if rts_acc is None:
+                            rts_acc = np.zeros(rts.shape)
+
+                        rts_acc += rts
+                        
+                        plt.plot(fs, rts)
+                
+                rts_acc /= n_rts
+                plt.plot(fs, rts_acc)
+                plt.show(block=False)
+
+            return f
+
+        for id in ints:
+            ((start, stop), var) = ints[id]
+            #self.plot(data[start : stop])
+            label = tk.Label(master=graphs, text="{}, {}".format(start, stop))
+            label.pack()
+            checkbox = tk.Checkbutton(master=graphs, command=check_box(id), variable=var, onvalue=True, offvalue=False)
+            checkbox.pack()
+            #fs, rts, _, _ = calc_rt(get_spectogram(data[start : stop], {"nfft": self.nfft.get(), "nperseg": self.nperseg.get(), "sr": 48000}), {"thresh": -20})
+            #self.plot(data[start : stop])
+            check_box(0)()
+            #plt.plot(fs, rts)
+            #plt.show(block=False)
+
+            pass
 
         plt.show()
-
-        for start, stop in intervals:
-            #self.plot(data[start : stop])
-            fs, rts, _, _ = calc_rt(get_spectogram(data[start : stop], {"nfft": self.nfft.get(), "nperseg": self.nperseg.get(), "sr": 48000}), {"thresh": -20})
-            #self.plot(data[start : stop])
-            pass
         return
 
 
@@ -300,6 +567,7 @@ class AudioInput:
 
     def plot(self, data: np.ndarray):
 
+
         self.fig, self.axis = plt.subplots(1, 4, figsize=(10, 10))
         fig = self.fig
         axis = self.axis
@@ -369,7 +637,7 @@ def get_spectogram(data: np.ndarray, args: dict) -> Spectrogram:
 
     return spec
 
-def calc_rt(spec: Spectrogram, args: dict)       ->     tuple[int, int, int, int]:
+def calc_rt(spec: Spectrogram, args: dict)       ->     tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
     fs, ts, M = spec.frequencies, spec.times, spec.values
 
@@ -425,13 +693,13 @@ def calc_rt(spec: Spectrogram, args: dict)       ->     tuple[int, int, int, int
         graph_fit = slope * ts + intersect
         #_graph_fit = slope * _ts + intersect
 
-        if fs[f_idx] > 3080 and fs[f_idx] < 3100:
+        # if fs[f_idx] > 3080 and fs[f_idx] < 3100:
 
-            print("idx", f_idx)
-            plt.title("frequency {}, slope {}, mse {}".format(fs[f_idx], slope, mses[f_idx]))
-            plt.plot(amps_db)
-            plt.plot(graph_fit)
-            plt.show()
+        #     print("idx", f_idx)
+        #     plt.title("frequency {}, slope {}, mse {}".format(fs[f_idx], slope, mses[f_idx]))
+        #     plt.plot(amps_db)
+        #     plt.plot(graph_fit)
+        #     plt.show()
 
         # set slopes
         slopes[f_idx] = slope
