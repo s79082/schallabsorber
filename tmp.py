@@ -30,7 +30,11 @@ X_0 = 1.18111 * 10 ** -9
 DB_DIFF = 60.0 
 
 def to_dB(data: np.ndarray) -> np.ndarray:
-    return 10 * np.log10(abs(data) / X_0)
+
+    # fill zeros
+    tmp = data
+    tmp[tmp == 0] = 10**-10
+    return 10 * np.log10(abs(tmp) / X_0)
 
 SAMPLERATE = 48000
 

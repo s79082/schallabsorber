@@ -38,42 +38,42 @@ class Meassurement:
 
 def scan(data: np.ndarray) -> list[tuple[int, int]]:
 
-    # frame_size = int(1136 / 2)
-    # min_interval_len = SAMPLERATE
+    frame_size = int(1136 / 2)
+    min_interval_len = SAMPLERATE
 
-    # split_data = np.array_split(data, int(len(data) / frame_size))
-    # state = "listen"
+    split_data = np.array_split(data, int(len(data) / frame_size))
+    state = "listen"
 
-    # intervals = []
-    # # start = stop = None
+    intervals = []
+    # start = stop = None
 
-    # maximas = []
+    maximas = []
 
-    # # _data = []
+    # _data = []
 
-    # for idx, frame in enumerate(split_data):
-    #     data_dB = to_dB(frame)
-    #     print(len(frame))
+    for idx, frame in enumerate(split_data):
+        data_dB = to_dB(frame)
 
-    #     # get max amp
-    #     max_val = np.max(data_dB)
-    #     maximas.append(max_val)
+        # get max amp
+        max_val = np.max(data_dB)
+        maximas.append(max_val)
 
-    #     if max_val > 69 and state == "listen":
-    #         state = "record"
-    #         start = idx * frame_size
+        if max_val > 69 and state == "listen":
+            state = "record"
+            start = idx * frame_size
 
-    #     if max_val < 55 and state == "record":
+        if max_val < 55 and state == "record":
 
-    #         stop = idx * frame_size
-    #         if stop - start > min_interval_len:
-    #             intervals.append((start, stop))
-    #             pass
-    #         start = stop = None
-    #         state = "listen"
+            stop = idx * frame_size
+            if stop - start > min_interval_len:
+                #intervals.append((start, stop))
+                intervals.append((stop - SAMPLERATE, stop))
+                pass
+            start = stop = None
+            state = "listen"
 
 
-    #return intervals
+    return intervals
 
     #tmp = np.diff(maximas)
     #plt.plot(np.diff(maximas))
