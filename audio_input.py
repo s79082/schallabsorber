@@ -28,8 +28,11 @@ class Meassurement:
         self.start = start
         self.stop = stop
 
+    def __str__(self) -> str:
+        return "({}, {})".format(self.start, self.stop)
+
     def is_calculated(self):
-        return self.rt is not None and self.fs is not None
+        return self.rts is not None and self.fs is not None
 
     def calculate(self, data: np.ndarray, audio_input_obj):
         self.fs, self.rts, self.mses, _ = calc_rt(get_spectogram(data[self.start : self.stop], {"nfft": audio_input_obj.nfft.get(), "nperseg": audio_input_obj.nperseg.get(), "sr": 48000}), {"thresh": -20})
@@ -251,14 +254,15 @@ class AudioInput:
 
         from tkinter.messagebox import askyesno
 
-        #plt.plot(data)
-        #plt.show()
-
         intervals = scan(data)
 
-        self.n_intervals = len(intervals)
+        plt.plot(data)
+        xs = list(map(lambda i: i[0], intervals))
+        xs += list(map(lambda i: i[1], intervals))
+        plt.vlines(xs, ymin=[np.min(data)], ymax=[np.max(data)], colors=["red"])
+        plt.show(block=False)
 
-        vlines :list[tuple[int, str]] = []
+        self.n_intervals = len(intervals)
 
         for interval_idx, (start, stop) in enumerate(intervals):
             
@@ -285,8 +289,6 @@ class AudioInput:
             start_line = (start, "orange")
             stop_line = (stop, "orange")
 
-            new_start_line = new_stop_line = None
-
             title = "interval nr {}".format(interval_idx)
 
             fig = plt.gcf()
@@ -298,7 +300,7 @@ class AudioInput:
             
             def onclick(event):
 
-                global start_line
+                global start_line, cid
 
                 plt.clf()
                 plt.plot(global_time, data_frame)
@@ -310,6 +312,7 @@ class AudioInput:
                 ix = int(event.xdata)
 
                 new_start_line = (ix, "red")
+                print("ix", ix)
 
                 # show new start line
                 redraw_vlines([new_start_line, stop_line, start_line])
@@ -321,11 +324,59 @@ class AudioInput:
                 if accept:
                     # set new start
                     start_line = new_start_line
-                    plt.cla()
-                    plt.show()
+                    print("start line", start_line[0])
+                    #fig.canvas.mpl_disconnect(cid)
+                    #plt.cla()
+                    plt.show(block=False)
        
 
             accept = askyesno(title, "accept start {} ?".format(start))
+
+            cid = fig.canvas.mpl_connect('button_press_event', onclick)
+
+            if accept:
+                plt.plot(block=False)
+            else:
+                
+                plt.show()
+
+            
+            # confirm stop line
+
+            #plt.show(block=False)
+            
+            def onclick(event):
+
+                global stop_line
+
+                plt.clf()
+                plt.plot(global_time, data_frame)
+                #redraw_vlines([start_line, stop_line])
+
+                plt.show(block=False)
+
+                # get coordinates
+                ix = int(event.xdata)
+
+                new_stop_line = (ix, "red")
+                print("ix", ix)
+
+                # show new start line
+                redraw_vlines([new_stop_line, stop_line, start_line])
+                
+                plt.show(block=False)
+                
+                accept = askyesno(title, "accept stop {} ?".format(ix))
+
+                if accept:
+                    # set new start
+                    stop_line = new_stop_line
+                    print("stop line", stop_line[0])
+                    #plt.cla()
+                    plt.show(block=False)
+       
+
+            accept = askyesno(title, "accept stop {} ?".format(stop))
 
             cid = fig.canvas.mpl_connect('button_press_event', onclick)
 
@@ -337,14 +388,15 @@ class AudioInput:
 
             print(start_line)
 
-            self.measurenents.append(Meassurement(start_line[0], stop))
+            self.measurenents.append(Meassurement(start_line[0], stop_line[0]))
+            print(str(self.measurenents[0]))
 
             fig.canvas.mpl_disconnect(cid)
 
         # TODO handle stop input
 
         print(self.measurenents)
-        input()
+        #input()
 
         for messure in self.measurenents:
             messure.calculate(data, self)
@@ -358,18 +410,40 @@ class AudioInput:
 
 
 
-        # draw list
+           # draw list
         # 
         graphs = tk.Tk()
 
-        show: list[tk.BooleanVar] = []
+        show = dict()
+
+        def on_cb_change():
+
+            plt.cla()
+
+            for mes, var in show.items():
+                if var.get():
+                    if not mes.is_calculated():
+                        mes.calculate()
+
+                    plt.plot(mes.fs, mes.rts)
+
+            plt.ylabel("RT60 (s)")
+            plt.xlabel("frquency (Hz)")
+            plt.show(block=False)
+
+
  
         for id, messure in enumerate(self.measurenents):
-            show += [tk.BooleanVar(master=graphs, value=True)]
+            show[messure] = tk.BooleanVar(master=graphs, value=True)
+            #show += [tk.BooleanVar(master=graphs, value=True)]
+            print(messure.start)
             label = tk.Label(master=graphs, text="{}, {}".format(messure.start, messure.stop))
+            label.pack()
+            cb = tk.Checkbutton(master=graphs, variable=show[messure], onvalue=True, offvalue=False, command=on_cb_change)
+            cb.pack()
             #checkbox = tk.Checkbutton(master=graphs, command=check_box(id), variable=var, onvalue=True, offvalue=False)
 
-
+        return
             
         #     plt.plot(global_time, data_frame)
 
@@ -474,7 +548,7 @@ class AudioInput:
                         plt.plot(fs, rts)
                 
                 rts_acc /= n_rts
-                plt.plot(fs, rts_acc)
+                #plt.plot(fs, rts_acc)
                 plt.show(block=False)
 
             return f
