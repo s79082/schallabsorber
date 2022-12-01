@@ -155,10 +155,11 @@ class AudioInput:
         def ondraw():
             
             plt.cla()
-
-            for mes in self.measurenents:
-                mes.calculate(self.data, self)
-                plt.plot(mes.fs, mes.rts)
+            for mes, var in self.show.items():
+            #for mes in self.measurenents:
+                if var.get():
+                    mes.calculate(self.data, self)
+                    plt.plot(mes.fs, mes.rts)
 
             plt.show()
 
@@ -190,7 +191,7 @@ class AudioInput:
         thresh_val = Value(self.window, 4, thresh, "Schwelle für RT Messung [dB]", ondraw)
 
 
-        btn_writefile = tk.Button(master=self.window, text="write rt to file", command=None)
+        btn_writefile = tk.Button(master=self.window, text="write rt to file", command=self.on_write_file)
         btn_writefile.grid(row=5, column=0)
 
         btn_rec = tk.Button(master=self.window, text="REC", command=None)
@@ -221,7 +222,41 @@ class AudioInput:
     def draw_rts(self):
         pass
 
+    def on_write_file(self):
+        from tkinter.filedialog import asksaveasfilename
+        file_name = asksaveasfilename()
+        self.write_file(file_name)
+        
 
+    def write_file(self, filename: str):
+        from datetime import datetime
+        fs = self.measurenents[0].fs
+        # get rts from messurements
+        rts = map(lambda m: m.rts, self.measurenents)
+        rts_zip = list(zip(*rts))
+        with open(filename, mode="w+") as file:
+            # header
+            file.write("Reveberation time ")
+            file.write(str(datetime.now()))
+            
+            file.write("\n")
+            file.write("frequencies (Hz), ")
+            rt_header = []
+            for i, _ in enumerate(self.measurenents):
+                rt_header += ["RT60 #{} (s)".format(str(i))]
+
+            file.write(",".join(rt_header))
+            file.write("\n")
+
+            for f, _rts in zip(fs, rts_zip):
+                file.write(str(f))
+                file.write(",")
+                _rts = map(str, _rts)
+                file.write(",".join(_rts))
+                file.write("\n")
+
+        print(rts_zip[0])
+        pass
 
     def _toggle_rec(self):
 
@@ -243,7 +278,7 @@ class AudioInput:
 
             xs = list(map(lambda l: l[0], vlines))
             colors = list(map(lambda l: l[1], vlines))
-
+            fig = plt.gcf()
             fig.get_axes()[0].vlines(xs, frame_min, frame_max, colors=colors)
             
 
@@ -264,7 +299,7 @@ class AudioInput:
 
         self.data = data
 
-        from tkinter.messagebox import askyesno
+        from tkinter.messagebox import askyesno, showinfo
 
         intervals = scan(data)
 
@@ -276,7 +311,9 @@ class AudioInput:
 
         self.n_intervals = len(intervals)
 
-        for interval_idx, (start, stop) in enumerate(intervals):
+        showinfo("", "{} intervals detected".format(len(intervals)))
+
+        for interval_idx, (start, stop) in enumerate(intervals):    
             
             # border from the lines 
             frame_border = 10000
@@ -340,14 +377,14 @@ class AudioInput:
                     #fig.canvas.mpl_disconnect(cid)
                     #plt.cla()
                     plt.show(block=False)
-       
+                    plt.close()       
 
             accept = askyesno(title, "accept start {} ?".format(start))
 
             cid = fig.canvas.mpl_connect('button_press_event', onclick)
 
             if accept:
-                plt.plot(block=False)
+                plt.show(block=False)
             else:
                 
                 plt.show()
@@ -381,6 +418,7 @@ class AudioInput:
                 accept = askyesno(title, "accept stop {} ?".format(ix))
 
                 if accept:
+
                     # set new start
                     stop_line = new_stop_line
                     print("stop line", stop_line[0])
@@ -388,12 +426,17 @@ class AudioInput:
                     plt.show(block=False)
        
 
-            accept = askyesno(title, "accept stop {} ?".format(stop))
+            plt.plot(global_time, data_frame)
+            redraw_vlines([start_line, stop_line])
+            plt.show(block=False)
+            plt.gcf().canvas.mpl_disconnect(cid)
 
-            cid = fig.canvas.mpl_connect('button_press_event', onclick)
+            accept = askyesno(title, "accept stop {} ?".format(stop))
+            
+            cid = plt.gcf().canvas.mpl_connect('button_press_event', onclick)
 
             if accept:
-                plt.cla()
+                plt.show(block=False)
             else:
                 
                 plt.show()
@@ -426,13 +469,13 @@ class AudioInput:
         # 
         graphs = tk.Tk()
 
-        show = dict()
+        self.show = dict()
 
         def on_cb_change():
 
             plt.cla()
 
-            for mes, var in show.items():
+            for mes, var in self.show.items():
                 if var.get():
                     if not mes.is_calculated():
                         mes.calculate(data, self)
@@ -446,12 +489,12 @@ class AudioInput:
 
  
         for id, messure in enumerate(self.measurenents):
-            show[messure] = tk.BooleanVar(master=graphs, value=True)
+            self.show[messure] = tk.BooleanVar(master=graphs, value=True)
             #show += [tk.BooleanVar(master=graphs, value=True)]
             print(messure.start)
             label = tk.Label(master=graphs, text="{}, {}".format(messure.start, messure.stop))
             label.pack()
-            cb = tk.Checkbutton(master=graphs, variable=show[messure], onvalue=True, offvalue=False, command=on_cb_change)
+            cb = tk.Checkbutton(master=graphs, variable=self.show[messure], onvalue=True, offvalue=False, command=on_cb_change)
             cb.pack()
             #checkbox = tk.Checkbutton(master=graphs, command=check_box(id), variable=var, onvalue=True, offvalue=False)
 
