@@ -152,6 +152,16 @@ class AudioInput:
 
         self.window = tk.Tk()
 
+        def ondraw():
+            
+            plt.cla()
+
+            for mes in self.measurenents:
+                mes.calculate(self.data, self)
+                plt.plot(mes.fs, mes.rts)
+
+            plt.show()
+
         self.btn_rec_var = tk.StringVar(master=self.window, value="DISABLED")
         self.btn_rec = tk.Button(master=self.window, textvariable=self.btn_rec_var, command=self._toggle_rec)
         self.btn_rec.grid(row=6, column=0)
@@ -161,23 +171,23 @@ class AudioInput:
 
         self.nfft = tk.IntVar(master=self.window)
         self.nfft.set(2048)
-        self.nfft_val = Value(self.window, 0, self.nfft, "nfft", mode="")
+        self.nfft_val = Value(self.window, 0, self.nfft, "nfft", ondraw, mode="")
 
         self.nperseg = tk.IntVar(master=self.window)
         self.nperseg.set(64)
-        self.nperseg_val = Value(self.window, 1, self.nperseg, "nperseg", mode="")
+        self.nperseg_val = Value(self.window, 1, self.nperseg, "nperseg", ondraw, mode="")
 
         max_mse = tk.IntVar(master=self.window)
         max_mse.set(60)
-        max_mse_val = Value(self.window, 2, max_mse, "maximaler Fehler")
+        max_mse_val = Value(self.window, 2, max_mse, "maximaler Fehler", ondraw)
 
         max_slope = tk.IntVar(master=self.window)
         max_slope.set(-20)
-        max_slope_val = Value(self.window, 3, max_slope, "maximaler Anstieg")
+        max_slope_val = Value(self.window, 3, max_slope, "maximaler Anstieg", ondraw)
 
         thresh = tk.IntVar(master=self.window)
         thresh.set(-10)
-        thresh_val = Value(self.window, 4, thresh, "Schwelle für RT Messung [dB]")
+        thresh_val = Value(self.window, 4, thresh, "Schwelle für RT Messung [dB]", ondraw)
 
 
         btn_writefile = tk.Button(master=self.window, text="write rt to file", command=None)
@@ -251,6 +261,8 @@ class AudioInput:
         #data2, _ = audiofile.read("data/2022-09-24_SLM_002_Audio_FS129.7dB(PK)_00.wav")
         #data = np.concatenate((data, data2))
         data, sr = read(file_name)
+
+        self.data = data
 
         from tkinter.messagebox import askyesno
 
@@ -423,7 +435,7 @@ class AudioInput:
             for mes, var in show.items():
                 if var.get():
                     if not mes.is_calculated():
-                        mes.calculate()
+                        mes.calculate(data, self)
 
                     plt.plot(mes.fs, mes.rts)
 
@@ -791,7 +803,7 @@ class Value:
             self.val.set(self.val.get() + 1)
         else:
             self.val.set(int(self.val.get() * 2))
-        
+        self.ondraw()
         #draw(glob_data)
         
 
@@ -800,17 +812,19 @@ class Value:
             self.val.set(self.val.get() - 1)
         else:
             self.val.set(int(self.val.get() / 2))
-        #draw(glob_data)
+        self.ondraw()
 
     def get(self):
         return self.val.get()
 
         
 
-    def __init__(self, m: tk.Misc, r: int, var, text: str, mode: str = "linear") -> None:
+    def __init__(self, m: tk.Misc, r: int, var, text: str, ondraw, mode: str = "linear") -> None:
         self.val = var
         #self.val.set(256)
         self.mode = mode
+
+        self.ondraw = ondraw
 
         self.lb_text = tk.Label(master=m, text=text, width=10)
         self.lb_text.grid(row=r, column=0)
