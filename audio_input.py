@@ -8,6 +8,10 @@ from sklearn.metrics import mean_squared_error
 import sounddevice as sd
 import scipy.signal as sig
 
+import color_manager as color
+from interval_row import IntervalRow
+
+from matplotlib.backend_bases import MouseButton
 
 import matplotlib.pyplot as plt
 
@@ -24,9 +28,13 @@ class Meassurement:
     mses: np.ndarray
     slope: np.ndarray
 
+    graph_color: str
+
     def __init__(self, start, stop) -> None:
         self.start = start
         self.stop = stop
+
+        self.graph_color = color.get_color()
 
     def __str__(self) -> str:
         return "({}, {})".format(self.start, self.stop)
@@ -134,6 +142,7 @@ class AudioInput:
     def __init__(self, channels, samplerate) -> None:
         self.mapping: list = [c - 1 for c in channels]  # Channel numbers start with 1
         self.start = None
+        self.stopp = None
         self.end = 0
         self.n_frames = 0
         length = int(200 * samplerate / (1000 * 10))
@@ -146,7 +155,6 @@ class AudioInput:
         self.all_rts = []
 
         self.measurenents = []
-
 
         print(length)
 
@@ -194,15 +202,17 @@ class AudioInput:
         btn_writefile = tk.Button(master=self.window, text="write rt to file", command=self.on_write_file)
         btn_writefile.grid(row=5, column=0)
 
-        btn_rec = tk.Button(master=self.window, text="REC", command=None)
-        btn_rec.grid(row=5, column=3)
+        #btn_rec = tk.Button(master=self.window, text="REC", command=None)
+        #btn_rec.grid(row=5, column=3)
 
-        txt_filename = tk.Text(master=self.window, width=20, height=1)
-        txt_filename.grid(row=5, column=1)
-        txt_filename.insert("1.0", "out.csv")
+        #txt_filename = tk.Text(master=self.window, width=20, height=1)
+        #txt_filename.grid(row=5, column=1)
+        #txt_filename.insert("1.0", "out.csv")
 
-        btn_wav = tk.Button(master=self.window, text="save sample as WAV", command=None)
-        btn_wav.grid(row=6, column=1)
+        #btn_wav = tk.Button(master=self.window, text="save sample as WAV", command=None)
+        #btn_wav.grid(row=6, column=1)
+
+
 
         self.record_data = np.zeros((length * 100, len(channels)))
 
@@ -232,6 +242,8 @@ class AudioInput:
         from datetime import datetime
         fs = self.measurenents[0].fs
         # get rts from messurements
+
+        #selected_messurements = map(lambda m, v: v.get() == True, self.show.items())
         rts = map(lambda m: m.rts, self.measurenents)
         rts_zip = list(zip(*rts))
         with open(filename, mode="w+") as file:
@@ -273,13 +285,119 @@ class AudioInput:
 
     def load_file(self):
         global start_line, stop_line
+        
+        fig = plt.gcf()
 
-        def redraw_vlines(vlines: list[tuple[int, str]]):
 
-            xs = list(map(lambda l: l[0], vlines))
-            colors = list(map(lambda l: l[1], vlines))
-            fig = plt.gcf()
-            fig.get_axes()[0].vlines(xs, frame_min, frame_max, colors=colors)
+        def plot_data():
+            plt.plot(data_db)
+            plt.ylabel("SPL (dB)")
+
+
+        def redraw_vlines():
+            # get start lines
+            starts = list(map(lambda m: m.start, self.measurenents))
+            stopps = list(map(lambda m: m.stop, self.measurenents))
+            start_colors = ["green" for _ in starts]
+            stopp_colors = ["red" for _ in stopps]
+
+
+            positions = starts + stopps
+            colors = start_colors + stopp_colors
+
+            ax = plt.gca()
+
+            plt.cla()
+            plt.plot(data_db)
+
+            ax.vlines(positions, 0, 90, colors=colors)
+
+            plt.show(block=False)
+
+        win_intervall_select = tk.Tk()
+
+        cid = None
+        self.aleady_clicked = False
+        def on_add_intervall():
+            global cid
+
+            self.btn_add_intervall.config(text="click to abort")
+            print(self.aleady_clicked)
+
+            # check if user wants to abort interval selection
+            if self.aleady_clicked:
+                # ready for new interval input
+                fig.canvas.mpl_disconnect(cid)
+                self.aleady_clicked = False
+                self.btn_add_intervall.config(text="add interval")
+                return
+            # user clicked btn
+            self.aleady_clicked = True
+            self.start = None
+            self.stopp = None
+            def onclick(event):
+
+                ax = plt.gca()
+                for l in ax.lines:
+                    print(l)
+                # for line in ax.lines:
+                #    ax.lines.remove(line)
+                #x.clear()
+                #plt.plot(data_db)
+                #plt.show(block=False)
+
+                if event.button == MouseButton.LEFT:
+                    self.start = int(event.xdata)
+                    # TODO we want the one line (start or stopp) also drawn
+                    #ax.vlines([self.start], 0, 90, colors=["orange"])
+
+                elif event.button == MouseButton.RIGHT:
+                    self.stopp = int(event.xdata)
+                    #ax.vlines([self.stopp], 0, 90, colors=["orange"])
+                
+                if self.start is not None and self.stopp is not None:
+
+                    # add new messure to be calculated
+                    messure = Meassurement(self.start, self.stopp)
+                    self.measurenents.append(messure)
+
+                    # add ui element
+                    row = IntervalRow(win_intervall_select, messure, self, redraw_vlines)
+
+                    # redraw all vlines from messures
+                    redraw_vlines()
+
+                    # ready for next interval input
+                    fig.canvas.mpl_disconnect(cid)
+                    self.aleady_clicked = False
+                    self.btn_add_intervall.config(text="add interval")
+
+
+                plt.show(block=False)
+                print(event.button)
+
+            cid = fig.canvas.mpl_connect('button_press_event', onclick)
+
+
+        self.btn_add_intervall = tk.Button(master=win_intervall_select, command=on_add_intervall, text="add interval")
+        self.btn_add_intervall.pack()
+
+        def on_calculate_rts():
+
+            plt.close()
+
+            for messure in self.measurenents:
+                messure.calculate(data, self)
+
+            for gr in self.measurenents:
+                plt.plot(gr.fs, gr.rts, color=gr.graph_color)
+
+            plt.ylabel("RT60 (s)")
+            plt.xlabel("Frequency (Hz)")
+            plt.show(block=False)
+
+        btn_calculate = tk.Button(master=win_intervall_select, text="calculate RTs", command=on_calculate_rts)
+        btn_calculate.pack()
             
 
         from audiofile import read
@@ -287,14 +405,7 @@ class AudioInput:
 
         file_name = askopenfilename()
 
-        #data, sr = audiofile.read("D:/Downloads/TransferXL-08j50XPJzvhhC9/Messungen 21_11_2022/TestN333-1/2022-11-23_SLM_000_Audio_FS129.7dB(PK)_00.wav")
-        #data, sr = audiofile.read("D:/Downloads/Container221122/Container221122/2022-11-24_SLM_000_Audio_FS129.7dB(PK)_00.wav")
-        
-        #data, sr = audiofile.read("data/2022-11-23_SLM_000_Audio_FS129.7dB(PK)_00.wav")
-        
-        #data, _ = audiofile.read("data/2022-09-24_SLM_001_Audio_FS129.7dB(PK)_00.wav")
-        #data2, _ = audiofile.read("data/2022-09-24_SLM_002_Audio_FS129.7dB(PK)_00.wav")
-        #data = np.concatenate((data, data2))
+
         data, sr = read(file_name)
 
         self.data = data
@@ -303,17 +414,34 @@ class AudioInput:
 
         intervals = scan(data)
 
-        plt.plot(data)
-        xs = list(map(lambda i: i[0], intervals))
-        xs += list(map(lambda i: i[1], intervals))
-        plt.vlines(xs, ymin=[np.min(data)], ymax=[np.max(data)], colors=["red"])
+        data_db = to_dB(data)
+
+        plt.plot(data_db)
         plt.show(block=False)
 
+        return
+        xs = list(map(lambda i: i[0], intervals))
+        xs += list(map(lambda i: i[1], intervals))
+        plt.vlines(xs, ymin=[np.min(data_db)], ymax=[np.max(data_db)], colors=["red"])
+        plt.show(block=False)
+
+        def on_select_interval(event):
+            for start, stop in intervals:
+
+                if start < event.xdata < stop:
+
+                    print("seleted ", start, stop)
+        
+        plt.gcf().canvas.mpl_connect('button_press_event', on_select_interval)
+
+        #plt.show()
         self.n_intervals = len(intervals)
 
         showinfo("", "{} intervals detected".format(len(intervals)))
 
         for interval_idx, (start, stop) in enumerate(intervals):    
+
+            plt.clf()
             
             # border from the lines 
             frame_border = 10000
@@ -443,7 +571,10 @@ class AudioInput:
 
             print(start_line)
 
-            self.measurenents.append(Meassurement(start_line[0], stop_line[0]))
+            m = Meassurement(start_line[0], stop_line[0])
+            #m.graph_color = color.get_color()
+
+            self.measurenents.append(m)
             print(str(self.measurenents[0]))
 
             fig.canvas.mpl_disconnect(cid)
@@ -457,7 +588,7 @@ class AudioInput:
             messure.calculate(data, self)
 
         for gr in self.measurenents:
-            plt.plot(gr.fs, gr.rts)
+            plt.plot(gr.fs, gr.rts, color=gr.graph_color)
 
         plt.show(block=False)
 
@@ -480,7 +611,7 @@ class AudioInput:
                     if not mes.is_calculated():
                         mes.calculate(data, self)
 
-                    plt.plot(mes.fs, mes.rts)
+                    plt.plot(mes.fs, mes.rts, color=mes.graph_color)
 
             plt.ylabel("RT60 (s)")
             plt.xlabel("frquency (Hz)")
@@ -494,6 +625,8 @@ class AudioInput:
             print(messure.start)
             label = tk.Label(master=graphs, text="{}, {}".format(messure.start, messure.stop))
             label.pack()
+            color_label = tk.Label(master=graphs, text="COLOR", fg=messure.graph_color, bg=messure.graph_color)
+            color_label.pack()
             cb = tk.Checkbutton(master=graphs, variable=self.show[messure], onvalue=True, offvalue=False, command=on_cb_change)
             cb.pack()
             #checkbox = tk.Checkbutton(master=graphs, command=check_box(id), variable=var, onvalue=True, offvalue=False)
