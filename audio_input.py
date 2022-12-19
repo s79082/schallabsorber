@@ -288,7 +288,6 @@ class AudioInput:
         
         fig = plt.gcf()
 
-
         def plot_data():
             plt.plot(data_db)
             plt.ylabel("SPL (dB)")
@@ -315,6 +314,7 @@ class AudioInput:
             plt.show(block=False)
 
         win_intervall_select = tk.Tk()
+        win_intervall_select.geometry("200x500")
 
         cid = None
         self.aleady_clicked = False
@@ -395,6 +395,38 @@ class AudioInput:
             plt.ylabel("RT60 (s)")
             plt.xlabel("Frequency (Hz)")
             plt.show(block=False)
+
+            win_intervall_select.destroy()
+
+            win_graphs = tk.Tk()
+            win_graphs.geometry("200x500")
+
+
+            self.show = dict()
+            for id, messure in enumerate(self.measurenents):
+                self.show[messure] = tk.BooleanVar(master=win_graphs, value=True)
+                print(messure.start)
+                label = tk.Label(master=win_graphs, text="{}, {}".format(messure.start, messure.stop))
+                label.pack()
+                color_label = tk.Label(master=win_graphs, text="COLOR", fg=messure.graph_color, bg=messure.graph_color)
+                color_label.pack()
+
+                def on_cb_change():
+
+                    plt.cla()
+
+                    for mes, var in self.show.items():
+                        if var.get():
+                            if not mes.is_calculated():
+                                mes.calculate(data, self)
+
+                            plt.plot(mes.fs, mes.rts, color=mes.graph_color)
+
+                    plt.ylabel("RT60 (s)")
+                    plt.xlabel("frquency (Hz)")
+                    plt.show(block=False)
+                cb = tk.Checkbutton(master=win_graphs, variable=self.show[messure], onvalue=True, offvalue=False, command=on_cb_change)
+                cb.pack()
 
         btn_calculate = tk.Button(master=win_intervall_select, text="calculate RTs", command=on_calculate_rts)
         btn_calculate.pack()
