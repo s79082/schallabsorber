@@ -313,6 +313,34 @@ class AudioInput:
 
             plt.show(block=False)
 
+        def zoom_in_interval(messure: Meassurement):
+            def f():
+                start = messure.start
+                stop = messure.stop
+                # border from the lines 
+                frame_border = 10000
+
+                frame_start = start - frame_border
+                frame_stop = stop + frame_border
+
+                data_frame = data_db[frame_start : frame_stop]
+
+                frame_min = np.min(data_frame)
+                frame_max = np.max(data_frame)
+
+                frame_len = len(data_frame)
+
+                # the time over the whole file
+                global_time = np.arange(start=frame_start, stop=frame_start + frame_len, step=1)
+
+                # draw frame
+                plt.clf()
+                plt.plot(global_time, data_frame)
+                plt.vlines([start, stop], [frame_min], [frame_max], colors=["green", "red"] )
+                plt.show(block=False)
+
+            return f
+
         win_intervall_select = tk.Tk()
         win_intervall_select.geometry("200x500")
 
@@ -362,7 +390,7 @@ class AudioInput:
                     self.measurenents.append(messure)
 
                     # add ui element
-                    row = IntervalRow(win_intervall_select, messure, self, redraw_vlines)
+                    row = IntervalRow(win_intervall_select, messure, self, redraw_vlines, zoom_in_interval)
 
                     # redraw all vlines from messures
                     redraw_vlines()
@@ -381,6 +409,13 @@ class AudioInput:
 
         self.btn_add_intervall = tk.Button(master=win_intervall_select, command=on_add_intervall, text="add interval")
         self.btn_add_intervall.pack()
+
+        
+        def zoom_next():
+            iterator = iter(self.measurenents)
+
+        self.btn_next_interval_zoom = tk.Button(master=win_intervall_select, command=None, text=">>")
+        self.btn_next_interval_zoom.pack()
 
         def on_calculate_rts():
 
@@ -448,11 +483,12 @@ class AudioInput:
 
         data_db = to_dB(data)
 
+
         for _start, _stop in intervals:
             mes = Meassurement(_start, _stop)
             self.measurenents.append(mes)
 
-            IntervalRow(win_intervall_select, mes, self, redraw_vlines)
+            IntervalRow(win_intervall_select, mes, self, redraw_vlines, zoom_in_interval)
 
         redraw_vlines()
 
