@@ -448,6 +448,15 @@ class AudioInput:
 
         data_db = to_dB(data)
 
+        for _start, _stop in intervals:
+            mes = Meassurement(_start, _stop)
+            self.measurenents.append(mes)
+
+            IntervalRow(win_intervall_select, mes, self, redraw_vlines)
+
+        redraw_vlines()
+
+
         plt.plot(data_db)
         plt.show(block=False)
 
