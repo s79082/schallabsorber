@@ -413,6 +413,9 @@ class AudioInput:
         
         def zoom_next():
             iterator = iter(self.measurenents)
+            def f():
+                #if iterator.
+                iterator.__next__()
 
         self.btn_next_interval_zoom = tk.Button(master=win_intervall_select, command=None, text=">>")
         self.btn_next_interval_zoom.pack()
