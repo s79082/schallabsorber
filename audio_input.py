@@ -425,7 +425,7 @@ class AudioInput:
                     self.measurenents.append(messure)
 
                     # add ui element
-                    row = IntervalRow(win_intervall_select, messure, self, redraw_vlines, zoom_in_interval, on_set_start, on_set_stop)
+                    self.interval_rows.append(IntervalRow(win_intervall_select, messure, self, redraw_vlines, zoom_in_interval, on_set_start, on_set_stop))
 
                     # redraw all vlines from messures
                     redraw_vlines()
@@ -540,7 +540,10 @@ class AudioInput:
 
                     mes.zoom(data_db)
                     fig.canvas.mpl_disconnect(self.select_cid)
-                    # TODO mark the interval row
+                    # mark the interval row
+                    for row in self.interval_rows:
+                        if row.messure is mes:
+                            row.mark()
 
                     
         self.select_cid = fig.canvas.mpl_connect("button_press_event", select_interval)
@@ -549,6 +552,8 @@ class AudioInput:
         btn_calculate.pack()
 
         def show_overview():
+            for row in self.interval_rows:
+                row.unmark()
             self.select_cid = fig.canvas.mpl_connect("button_press_event", select_interval)
             redraw_vlines(False)
 
@@ -561,6 +566,7 @@ class AudioInput:
 
         file_name = askopenfilename()
 
+        self.interval_rows = []
 
         data, sr = read(file_name)
 
@@ -577,7 +583,7 @@ class AudioInput:
             mes = Meassurement(_start, _stop)
             self.measurenents.append(mes)
 
-            IntervalRow(win_intervall_select, mes, self, redraw_vlines, zoom_in_interval, on_set_start, on_set_stop)
+            self.interval_rows.append(IntervalRow(win_intervall_select, mes, self, redraw_vlines, zoom_in_interval, on_set_start, on_set_stop))
 
         redraw_vlines()
 

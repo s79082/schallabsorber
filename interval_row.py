@@ -49,3 +49,9 @@ class IntervalRow:
 
     def zoom_in(self):
         self.zoom_in(self.messure)
+
+    def mark(self):
+        self.frame.config(background="red")
+
+    def unmark(self):
+        self.frame.config(background="white")
