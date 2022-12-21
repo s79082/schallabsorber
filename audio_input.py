@@ -45,6 +45,30 @@ class Meassurement:
     def calculate(self, data: np.ndarray, audio_input_obj):
         self.fs, self.rts, self.mses, _ = calc_rt(get_spectogram(data[self.start : self.stop], {"nfft": audio_input_obj.nfft.get(), "nperseg": audio_input_obj.nperseg.get(), "sr": 48000}), {"thresh": -20})
 
+    def zoom(self, data_db):
+        start = self.start
+        stop = self.stop
+        # border from the lines 
+        frame_border = 10000
+
+        frame_start = start - frame_border
+        frame_stop = stop + frame_border
+
+        data_frame = data_db[frame_start : frame_stop]
+
+        frame_min = np.min(data_frame)
+        frame_max = np.max(data_frame)
+
+        frame_len = len(data_frame)
+
+        # the localized time over the whole file
+        global_time = np.arange(start=frame_start, stop=frame_start + frame_len, step=1)
+
+        # draw frame
+        plt.clf()
+        plt.plot(global_time, data_frame)
+        plt.vlines([start, stop], [frame_min], [frame_max], colors=["green", "red"] )
+        plt.show(block=False)
 
 
 def scan(data: np.ndarray) -> list[tuple[int, int]]:
@@ -293,7 +317,12 @@ class AudioInput:
             plt.ylabel("SPL (dB)")
 
 
-        def redraw_vlines():
+        def redraw_vlines(keep_zoom=True):
+
+            # save last zoom
+            old_x_lim = plt.xlim()
+            old_y_lim = plt.ylim()
+
             # get start lines
             starts = list(map(lambda m: m.start, self.measurenents))
             stopps = list(map(lambda m: m.stop, self.measurenents))
@@ -310,6 +339,12 @@ class AudioInput:
             plt.plot(data_db)
 
             ax.vlines(positions, 0, 90, colors=colors)
+
+            # reset zoom
+            if old_x_lim != (0.0, 1.0) and old_y_lim != (0.0, 1.0) and keep_zoom:
+
+                plt.xlim(old_x_lim)
+                plt.ylim(old_y_lim)
 
             plt.show(block=False)
 
@@ -330,7 +365,7 @@ class AudioInput:
 
                 frame_len = len(data_frame)
 
-                # the time over the whole file
+                # the localized time over the whole file
                 global_time = np.arange(start=frame_start, stop=frame_start + frame_len, step=1)
 
                 # draw frame
@@ -390,7 +425,7 @@ class AudioInput:
                     self.measurenents.append(messure)
 
                     # add ui element
-                    row = IntervalRow(win_intervall_select, messure, self, redraw_vlines, zoom_in_interval)
+                    row = IntervalRow(win_intervall_select, messure, self, redraw_vlines, zoom_in_interval, on_set_start, on_set_stop)
 
                     # redraw all vlines from messures
                     redraw_vlines()
@@ -417,6 +452,36 @@ class AudioInput:
                 #if iterator.
                 iterator.__next__()
 
+        def on_set_start(messure: Meassurement):
+            
+            def f():
+                def on_set(event):
+                    if event.button == MouseButton.LEFT:
+                        x = int(event.xdata)
+                        messure.start = x
+                        redraw_vlines()
+                        fig.canvas.mpl_disconnect(self.cid)
+
+                self.cid = fig.canvas.mpl_connect("button_press_event", on_set)
+
+            return f
+
+        def on_set_stop(messure: Meassurement):
+
+            def f():
+
+                def on_set(event):
+                    if event.button == MouseButton.LEFT:
+                        x = int(event.xdata)
+                        messure.stop = x
+                        redraw_vlines()
+                        fig.canvas.mpl_disconnect(self.cid)
+            
+                self.cid = fig.canvas.mpl_connect("button_press_event", on_set)
+
+            return f
+
+                
         self.btn_next_interval_zoom = tk.Button(master=win_intervall_select, command=None, text=">>")
         self.btn_next_interval_zoom.pack()
 
@@ -466,8 +531,29 @@ class AudioInput:
                 cb = tk.Checkbutton(master=win_graphs, variable=self.show[messure], onvalue=True, offvalue=False, command=on_cb_change)
                 cb.pack()
 
+        def select_interval(event):
+
+            x = int(event.xdata)
+
+            for mes in self.measurenents:
+                if x > mes.start and x < mes.stop:
+
+                    mes.zoom(data_db)
+                    fig.canvas.mpl_disconnect(self.select_cid)
+                    # TODO mark the interval row
+
+                    
+        self.select_cid = fig.canvas.mpl_connect("button_press_event", select_interval)
+
         btn_calculate = tk.Button(master=win_intervall_select, text="calculate RTs", command=on_calculate_rts)
         btn_calculate.pack()
+
+        def show_overview():
+            self.select_cid = fig.canvas.mpl_connect("button_press_event", select_interval)
+            redraw_vlines(False)
+
+        btn_overview = tk.Button(master=win_intervall_select, text="overview", command=show_overview)
+        btn_overview.pack()
             
 
         from audiofile import read
@@ -491,13 +577,13 @@ class AudioInput:
             mes = Meassurement(_start, _stop)
             self.measurenents.append(mes)
 
-            IntervalRow(win_intervall_select, mes, self, redraw_vlines, zoom_in_interval)
+            IntervalRow(win_intervall_select, mes, self, redraw_vlines, zoom_in_interval, on_set_start, on_set_stop)
 
         redraw_vlines()
 
 
-        plt.plot(data_db)
-        plt.show(block=False)
+        #plt.plot(data_db)
+        plt.show()
 
         return
         xs = list(map(lambda i: i[0], intervals))
